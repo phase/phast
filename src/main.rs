@@ -2,10 +2,12 @@ use std::net::{TcpStream, TcpListener, UdpSocket};
 use std::io::{Write, Read};
 use std::thread;
 
+mod network;
+
 // Java Edition uses TCP
 fn start_tcp() {
-    let listener = TcpListener::bind("127.0.0.1:25565").unwrap();
-    println!("TCP on 127.0.0.1:25565");
+    let listener = TcpListener::bind("0.0.0.0:25565").unwrap();
+    println!("TCP on 0.0.0.0:25565");
 
     for stream in listener.incoming() {
         match stream {
@@ -15,7 +17,7 @@ fn start_tcp() {
                         let mut buf = vec![0; 64];
                         let length = socket.read(&mut buf).unwrap_or(0);
                         if length > 0 {
-                            println!("TCP: {:?} {:?}", socket.peer_addr().unwrap(), &buf[..length]);
+                            println!("TCP: {:?} {:X?}", socket.peer_addr().unwrap(), &buf[..length]);
                         }
                     }
                 });
@@ -29,25 +31,27 @@ fn start_tcp() {
 
 // Bedrock Edition uses UDP
 fn start_udp() {
-    let mut socket = UdpSocket::bind("127.0.0.1:19132").unwrap();
-    println!("UDP on 127.0.0.1:19132");
+    let socket = UdpSocket::bind("0.0.0.0:19132").unwrap();
+    println!("UDP on 0.0.0.0:19132");
 
     loop {
         let mut buf = [0; 64];
-        let (length, socket) = socket.recv_from(&mut buf).unwrap();
+        let (length, address) = socket.recv_from(&mut buf).unwrap();
         if length > 0 {
-            println!("UDP: {:?} {:?}", socket, &buf[..length])
+            println!("UDP: {:?} {:X?}", address, &buf[..length])
         }
     }
 }
 
 fn main() {
-    thread::spawn(move || {
+    let tcp_handle = thread::spawn(move || {
         start_tcp();
     });
 
-    thread::spawn(move || {
+    let udp_handle = thread::spawn(move || {
         start_udp();
     });
-    loop{}
+
+    tcp_handle.join().unwrap();
+    udp_handle.join().unwrap();
 }
