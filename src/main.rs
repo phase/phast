@@ -3,6 +3,7 @@ use std::io::{Write, Read};
 use std::thread;
 
 mod network;
+use network::connection;
 
 // Java Edition uses TCP
 fn start_tcp() {
@@ -12,13 +13,10 @@ fn start_tcp() {
     for stream in listener.incoming() {
         match stream {
             Ok(mut socket) => {
+                let mut connection = connection::Connection::new(socket.peer_addr().unwrap(), connection::SocketWrapper::TCP(socket));
                 thread::spawn(move || {
                     loop {
-                        let mut buf = vec![0; 64];
-                        let length = socket.read(&mut buf).unwrap_or(0);
-                        if length > 0 {
-                            println!("TCP: {:?} {:X?}", socket.peer_addr().unwrap(), &buf[..length]);
-                        }
+                        connection.read()
                     }
                 });
             }
@@ -35,7 +33,7 @@ fn start_udp() {
     println!("UDP on 0.0.0.0:19132");
 
     loop {
-        let mut buf = [0; 64];
+        let mut buf = vec![0; 64];
         let (length, address) = socket.recv_from(&mut buf).unwrap();
         if length > 0 {
             println!("UDP: {:?} {:X?}", address, &buf[..length])

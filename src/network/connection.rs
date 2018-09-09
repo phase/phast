@@ -1,7 +1,9 @@
 use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
 use std::io::{Write, Read};
 
+use network;
 use network::protocol;
+use network::protocol::java;
 
 /// Used to send data back to the client
 pub enum SocketWrapper {
@@ -15,7 +17,9 @@ pub struct Connection {
     pub address: SocketAddr,
     pub socket: SocketWrapper,
     pub protocol_type: protocol::ProtocolType,
+    // processing packets
     unprocessed_buffer: Vec<u8>,
+    has_started_packet: bool,
 }
 
 impl Connection {
@@ -30,10 +34,133 @@ impl Connection {
             },
             socket,
             unprocessed_buffer: vec![],
+            has_started_packet: false,
         }
     }
 
-    pub fn handle_read(&self, bytes: &[u8]) {}
+    // might need a mutex so we only handle one read at a time
+    pub fn handle_read(&mut self, bytes: &mut Vec<u8>) {
+        self.unprocessed_buffer.append(bytes);
+        if !self.has_started_packet {
+            self.has_started_packet = true;
+            let result = self.start_packet_read();
+            // if !result, we didn't read the full packet and we need to wait for more data
+            // to come in
+            if result {
+                self.has_started_packet = false;
+                self.unprocessed_buffer.clear()
+            }
+        } else {
+            self.start_packet_read();
+        }
+    }
+
+    pub fn start_packet_read(&mut self) -> bool {
+        let bytes = &self.unprocessed_buffer.clone();
+        let mut index: usize = 0;
+        match self.socket {
+            SocketWrapper::TCP(_) => {
+                // java edition
+                let length = match network::read_varint(bytes, index) {
+                    Some((l, v)) => {
+                        index += v;
+                        l
+                    }
+                    None => return false
+                };
+
+                if bytes.len() < (length as usize) {
+                    // we don't have enough data yet
+                    return false;
+                }
+
+                let id = match network::read_varint(bytes, index) {
+                    Some((l, v)) => {
+                        index += v;
+                        l
+                    }
+                    None => return false
+                };
+
+                // TODO: read packet based on protocol & id
+                {
+                    println!("Found TCP packet: length={} id={}", length, id);
+                    let remainder = &bytes[index..];
+                    println!("  packet_data: {:X?}", remainder);
+
+                    if id == 0 && length > 0 {
+                        println!("TCP C->S Handshake Packet");
+
+                        let protocol_version = match network::read_varint(bytes, index) {
+                            Some((l, v)) => {
+                                index += v;
+                                l
+                            }
+                            None => return false
+                        };
+                        println!("index {}/{}| protocol_version {}", index, length, protocol_version);
+
+                        let address = match network::read_string(bytes, index) {
+                            Some((s, v)) => {
+                                index += v;
+                                s
+                            }
+                            None => return false
+                        };
+                        println!("index {}/{}| address {}", index, length, address);
+
+                        let port = match network::read_ushort(bytes, index) {
+                            Some((s, v)) => {
+                                index += v;
+                                s
+                            }
+                            None => return false
+                        };
+                        println!("index {}/{}| port {}", index, length, port);
+
+                        let next_state = match network::read_varint(bytes, index) {
+                            Some((l, v)) => {
+                                index += v;
+                                l
+                            }
+                            None => return false
+                        };
+                        println!("index {}/{}| next_state {}", index, length, next_state);
+                    }
+                }
+                index = length as usize + 1;
+
+                if bytes.len() > index {
+                    let remainder = &bytes[index..];
+                    println!("  remainder: {:X?}", remainder);
+                    self.unprocessed_buffer = remainder.to_vec();
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+            SocketWrapper::UDP(_) => {
+                // bedrock edition
+            }
+        }
+
+        true
+    }
+
+    pub fn read(&mut self) {
+        let mut buf = vec![0; 64];
+        let mut length = 0;
+        match self.socket {
+            SocketWrapper::TCP(ref mut stream) => {
+                length = stream.read(&mut buf).unwrap_or(0);
+            }
+            SocketWrapper::UDP(ref mut socket) => {}
+        };
+        if length > 0 {
+            println!("buf length: {}", length);
+            self.handle_read(&mut buf[..length].to_vec());
+        }
+    }
 
     /// Writes `bytes` to the connected client
     pub fn write(&mut self, bytes: &[u8]) {
