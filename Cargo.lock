@@ -1,4 +1,23 @@
 [[package]]
+name = "concurrent-hashmap"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "spin 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "rserver"
 version = "0.0.0"
+dependencies = [
+ "concurrent-hashmap 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
+[[package]]
+name = "spin"
+version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[metadata]
+"checksum concurrent-hashmap 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "9b497d3441e4e31ef52273f344aacf0a24d28a353837451a45df9b3e9cf7d44a"
+"checksum spin 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)" = "14db77c5b914df6d6173dda9a3b3f5937bd802934fa5edaf934df06a3491e56f"

@@ -1,5 +1,6 @@
 use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
 use std::io::{Write, Read};
+use std::sync::Arc;
 
 use network;
 use network::protocol;
@@ -8,7 +9,7 @@ use network::protocol::java;
 /// Used to send data back to the client
 pub enum SocketWrapper {
     TCP(TcpStream),
-    UDP(UdpSocket),
+    UDP(Arc<UdpSocket>),
 }
 
 /// A connection with a client
@@ -35,6 +36,20 @@ impl Connection {
             socket,
             unprocessed_buffer: vec![],
             has_started_packet: false,
+        }
+    }
+
+    pub fn is_tcp(&self) -> bool {
+        match self.socket {
+            SocketWrapper::TCP(_) => true,
+            _ => false
+        }
+    }
+
+    pub fn is_udp(&self) -> bool {
+        match self.socket {
+            SocketWrapper::UDP(_) => true,
+            _ => false
         }
     }
 
@@ -147,19 +162,22 @@ impl Connection {
         true
     }
 
-    pub fn read(&mut self) {
+    pub fn read(&mut self) -> usize {
         let mut buf = vec![0; 64];
         let mut length = 0;
         match self.socket {
             SocketWrapper::TCP(ref mut stream) => {
                 length = stream.read(&mut buf).unwrap_or(0);
             }
-            SocketWrapper::UDP(ref mut socket) => {}
+            SocketWrapper::UDP(ref mut socket) => {
+                // I don't think there's a way to explicitly read from a UDP address
+            }
         };
         if length > 0 {
-            println!("buf length: {}", length);
             self.handle_read(&mut buf[..length].to_vec());
         }
+
+        length
     }
 
     /// Writes `bytes` to the connected client

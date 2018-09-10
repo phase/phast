@@ -3,6 +3,22 @@ pub mod connection;
 pub mod protocol;
 
 use std::mem;
+use std::net::SocketAddr;
+use std::collections::HashMap;
+
+use concurrent_hashmap::*;
+
+pub struct ConnectionManager {
+    pub connections: ConcHashMap<SocketAddr, connection::Connection>
+}
+
+impl ConnectionManager {
+    pub fn new() -> ConnectionManager {
+        ConnectionManager {
+            connections: ConcHashMap::<SocketAddr, connection::Connection>::new()
+        }
+    }
+}
 
 pub fn read_varint(buf: &Vec<u8>, mut index: usize) -> Option<(i32, usize)> {
     let mut result = 0;
