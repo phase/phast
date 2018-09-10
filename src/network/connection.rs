@@ -1,6 +1,7 @@
 use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
 use std::io::{Write, Read};
 use std::sync::Arc;
+use std::mem::transmute;
 
 use network;
 use network::protocol;
@@ -115,7 +116,7 @@ impl Connection {
                         };
                         println!("index {}/{}| protocol_version {}", index, length, protocol_version);
 
-                        let address = match network::read_string(bytes, index) {
+                        let address = match network::read_varint_string(bytes, index) {
                             Some((s, v)) => {
                                 index += v;
                                 s
@@ -156,6 +157,58 @@ impl Connection {
             }
             SocketWrapper::UDP(_) => {
                 // bedrock edition
+                let remainder = &bytes[index..];
+                println!("  Bytes: {:X?}", remainder);
+                let id = bytes[0];
+                index += 1;
+                if id == 1 {
+                    let ping_time = match network::read_u64(bytes, index) {
+                        Some((l, v)) => {
+                            index += v;
+                            l
+                        }
+                        None => return false
+                    };
+                    println!("index {}/{}| ping_time {}", index, bytes.len(), ping_time);
+                    // skip magic
+                    index += 16;
+
+                    let guid = match network::read_u64(bytes, index) {
+                        Some((l, v)) => {
+                            index += v;
+                            l
+                        }
+                        None => return false
+                    };
+
+                    // respond with an UnconnectedPong
+
+                    let mut ret = vec![0x1Cu8];
+                    // ping time
+                    ret.append(&mut (unsafe { transmute::<u64, [u8; 8]>(ping_time.to_be()) })[..].to_vec());
+//                    ret.append(&mut [0xE2u8].to_vec());
+                    // server guid
+//                    ret.append(&mut (unsafe { transmute::<u64, [u8; 8]>(12123434u64.to_be()) })[..].to_vec());
+                    ret.append(&mut (unsafe { transmute::<u64, [u8; 8]>(guid.to_be()) })[..].to_vec());
+                    ret.append(&mut network::protocol::bedrock::MAGIC.to_vec());
+                    // MCPE;motd;protocol version;version string (can be anything?);players online;max players;server guid;motd line two?;Survival (was in MiNet);
+                    let motd = "MCPE;test;282;1.6.0;1;2;9999;test2;Survival;";
+                    ret.append(&mut [0x0u8, 0x2Cu8].to_vec());
+                    ret.append(&mut String::from(motd).into_bytes());
+
+                    self.write(&ret[..]);
+                } else {
+                    println!("SUCCESS");
+                    println!("")
+                }
+                if bytes.len() > index {
+                    let remainder = &bytes[index..];
+                    println!("  remainder: {:X?}", remainder);
+                    self.unprocessed_buffer = remainder.to_vec();
+//                    return false;
+                } else {
+                    return true;
+                }
             }
         }
 
@@ -187,6 +240,7 @@ impl Connection {
                 stream.write(bytes);
             }
             SocketWrapper::UDP(ref mut socket) => {
+                println!("UDP SEND: {:X?}", bytes);
                 socket.send_to(bytes, self.address);
             }
         }

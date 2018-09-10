@@ -55,7 +55,7 @@ pub fn read_varint(buf: &Vec<u8>, mut index: usize) -> Option<(i32, usize)> {
     None
 }
 
-pub fn read_string(buf: &Vec<u8>, mut index: usize) -> Option<(String, usize)> {
+pub fn read_varint_string(buf: &Vec<u8>, mut index: usize) -> Option<(String, usize)> {
     let length = match read_varint(buf, index) {
         Some((l, v)) => {
             index += v;
@@ -91,4 +91,23 @@ pub fn read_ushort(buf: &Vec<u8>, mut index: usize) -> Option<(u16, usize)> {
     }
 
     Some((s, 2))
+}
+
+pub fn read_u64(buf: &Vec<u8>, mut index: usize) -> Option<(u64, usize)> {
+    if buf.len() < index + 2 {
+        return None;
+    }
+
+    let mut b: [u8; 8] = Default::default();
+    b.copy_from_slice(&buf[index..(index + 8)]);
+    let mut s: u64 = 0;
+    unsafe {
+        // swap bytes
+        s = mem::transmute([
+            b[7], b[6], b[5], b[4],
+            b[3], b[2], b[1], b[0]
+        ]);
+    }
+
+    Some((s, 8))
 }
