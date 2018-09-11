@@ -4,8 +4,8 @@ use std::sync::Arc;
 use std::mem::transmute;
 
 use network;
-use network::protocol;
-use network::protocol::java;
+use network::protocol::*;
+use network::protocol::java::*;
 
 /// Used to send data back to the client
 pub enum SocketWrapper {
@@ -18,8 +18,8 @@ pub enum SocketWrapper {
 pub struct Connection {
     pub address: SocketAddr,
     pub socket: SocketWrapper,
-    pub protocol_type: protocol::ProtocolType,
-    pub protocol_state: protocol::State,
+    pub protocol_state: State,
+    pub protocol: Box<Protocol>,
     // processing packets
     unprocessed_buffer: Vec<u8>,
     has_started_packet: bool,
@@ -31,14 +31,16 @@ impl Connection {
     pub fn new(address: SocketAddr, socket: SocketWrapper) -> Connection {
         Connection {
             address,
-            protocol_type: match socket {
-                SocketWrapper::TCP(_) => protocol::ProtocolType::JavaEdition,
-                SocketWrapper::UDP(_) => protocol::ProtocolType::BedrockEdition,
-            },
             protocol_state: match socket {
-                SocketWrapper::TCP(_) => protocol::State::JavaHandshake,
-                SocketWrapper::UDP(_) => protocol::State::BedrockRakNet,
+                SocketWrapper::TCP(_) => State::JavaHandshake,
+                SocketWrapper::UDP(_) => State::BedrockRakNet,
             },
+            protocol: Box::new(
+                match socket {
+                    SocketWrapper::TCP(_) => *v1_12::ProtocolJava_1_12,
+                    SocketWrapper::UDP(_) => *v1_12::ProtocolJava_1_12,
+                }
+            ),
             socket,
             unprocessed_buffer: vec![],
             has_started_packet: false,

@@ -2,12 +2,15 @@ use std::mem;
 
 use network::packet::*;
 
+#[derive(Copy, Clone, Default)]
 pub struct VarInt(pub i32);
 
 /// Used by the Java protocol
+#[derive(Clone, Default)]
 pub struct VarIntLengthPrefixedString(pub String);
 
 /// Used by the Bedrock protocol
+#[derive(Clone, Default)]
 pub struct ShortLengthPrefixedString(pub String);
 
 impl ReadField for u8 {

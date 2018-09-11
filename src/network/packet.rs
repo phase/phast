@@ -1,4 +1,3 @@
-#![macro_escape]
 use network::connection;
 use network::types::*;
 
@@ -22,10 +21,17 @@ pub trait WriteField where Self: Sized {
 #[macro_export]
 macro_rules! packet {
     ($packet_name:ident, $($field:ident: $t:ty),*) => {
+        #[derive(Clone, Default)]
         pub struct $packet_name {
             $(
                 $field: $t,
             )*
+        }
+
+        impl $packet_name {
+            fn new() -> Self {
+                Self { ..Default::default() }
+            }
         }
 
         impl Packet for $packet_name {

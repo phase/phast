@@ -5,3 +5,4 @@ authors = ["Jadon Fowler <jadonflower@gmail.com>"]
 
 [dependencies]
 concurrent-hashmap = "0.2.2"
+lazy_static = "1.1.0"

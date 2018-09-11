@@ -1,5 +1,7 @@
+#[macro_use]
 pub mod packet;
 pub mod connection;
+#[macro_use]
 pub mod protocol;
 pub mod types;
 
