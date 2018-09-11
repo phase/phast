@@ -1,22 +1,57 @@
+#![macro_escape]
 use network::connection;
+use network::types::*;
 
-trait Packet {
-    fn read(bytes: &[u8]);
-    fn write(&self) -> &[u8];
+pub trait Packet {
+    fn read(&mut self, bytes: Vec<u8>) -> bool;
+    fn write(&self) -> Vec<u8>;
 }
 
-
-pub struct UnspecifiedPacket {
-    // java uses varint, bedrock uses unsigned byte
-    id: i32,
-    bytes: [u8],
+/// Read type from bytes
+pub trait ReadField {
+    /// returns the type & the length to increment the index by
+    fn read(bytes: &Vec<u8>, index: usize) -> Option<(Self, usize)> where Self: Sized;
 }
 
-impl Packet for UnspecifiedPacket {
-    fn read(bytes: &[u8]) {}
-
-    fn write(&self) -> &[u8] {
-//        Vec::from(self.bytes).as_slice()
-        panic!("unimplemented")
-    }
+/// Write type to bytes
+pub trait WriteField where Self: Sized {
+    // TODO: Vec is probably going to kill performance
+    fn write(&self) -> Vec<u8>;
 }
+
+#[macro_export]
+macro_rules! packet {
+    ($packet_name:ident, $($field:ident: $t:ty),*) => {
+        pub struct $packet_name {
+            $(
+                $field: $t,
+            )*
+        }
+
+        impl Packet for $packet_name {
+            fn read(&mut self, bytes: Vec<u8>) -> bool {
+                let mut index = 0usize;
+                $(
+                    match <$t as ReadField>::read(&bytes, index) {
+                        Some((value, length)) => {
+                            self.$field = value;
+                            index += length;
+                        },
+                        None => return false
+                    }
+                )*
+                true
+            }
+
+            fn write(&self) -> Vec<u8> {
+                let mut buf = Vec::<u8>::new();
+                $(
+                    buf.append(&mut self.$field.write());
+                )*
+                buf
+            }
+        }
+    };
+}
+
+packet!(FirstPacket, a: u8, b: u8);

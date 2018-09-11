@@ -1,6 +1,7 @@
 pub mod packet;
 pub mod connection;
 pub mod protocol;
+pub mod types;
 
 use std::mem;
 use std::net::SocketAddr;

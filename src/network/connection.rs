@@ -19,6 +19,7 @@ pub struct Connection {
     pub address: SocketAddr,
     pub socket: SocketWrapper,
     pub protocol_type: protocol::ProtocolType,
+    pub protocol_state: protocol::State,
     // processing packets
     unprocessed_buffer: Vec<u8>,
     has_started_packet: bool,
@@ -33,6 +34,10 @@ impl Connection {
             protocol_type: match socket {
                 SocketWrapper::TCP(_) => protocol::ProtocolType::JavaEdition,
                 SocketWrapper::UDP(_) => protocol::ProtocolType::BedrockEdition,
+            },
+            protocol_state: match socket {
+                SocketWrapper::TCP(_) => protocol::State::JavaHandshake,
+                SocketWrapper::UDP(_) => protocol::State::BedrockRakNet,
             },
             socket,
             unprocessed_buffer: vec![],
@@ -199,7 +204,6 @@ impl Connection {
                     self.write(&ret[..]);
                 } else {
                     println!("SUCCESS");
-                    println!("")
                 }
                 if bytes.len() > index {
                     let remainder = &bytes[index..];
