@@ -5,6 +5,7 @@ use std::mem::transmute;
 
 use network;
 use network::protocol::*;
+use network::protocol::bedrock::*;
 use network::protocol::java::*;
 
 /// Used to send data back to the client
@@ -35,12 +36,10 @@ impl Connection {
                 SocketWrapper::TCP(_) => State::JavaHandshake,
                 SocketWrapper::UDP(_) => State::BedrockRakNet,
             },
-            protocol: Box::new(
-                match socket {
-                    SocketWrapper::TCP(_) => v1_12::ProtocolJava_1_12,
-                    SocketWrapper::UDP(_) => v1_12::ProtocolJava_1_12,
-                }
-            ),
+            protocol: match socket {
+                SocketWrapper::TCP(_) => Box::new(v1_12::ProtocolJava_1_12),
+                SocketWrapper::UDP(_) => Box::new(raknet::ProtocolBedrockRakNet),
+            },
             socket,
             unprocessed_buffer: vec![],
             has_started_packet: false,

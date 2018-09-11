@@ -1,6 +1,7 @@
 use std::mem;
 
 use network::packet::*;
+use network::protocol::bedrock;
 
 #[derive(Copy, Clone, Default)]
 pub struct VarInt(pub i32);
@@ -12,6 +13,9 @@ pub struct VarIntLengthPrefixedString(pub String);
 /// Used by the Bedrock protocol
 #[derive(Clone, Default)]
 pub struct ShortLengthPrefixedString(pub String);
+
+#[derive(Clone, Default)]
+pub struct RakNetMagic(pub [u8; 16]);
 
 impl ReadField for u8 {
     fn read(bytes: &Vec<u8>, index: usize) -> Option<(u8, usize)> {
@@ -231,5 +235,22 @@ impl ReadField for u64 {
 impl WriteField for u64 {
     fn write(&self) -> Vec<u8> {
         (unsafe { mem::transmute::<u64, [u8; 8]>(self.to_be()) })[..].to_vec()
+    }
+}
+
+impl ReadField for RakNetMagic {
+    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(RakNetMagic, usize)> {
+        // TODO: Validate
+        if buf.len() < index + 16 {
+            return None;
+        }
+
+        Some((RakNetMagic(bedrock::MAGIC), 16))
+    }
+}
+
+impl WriteField for RakNetMagic {
+    fn write(&self) -> Vec<u8> {
+        bedrock::MAGIC.to_vec()
     }
 }

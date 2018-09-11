@@ -1,4 +1,5 @@
-mod v1_5;
+pub mod raknet;
+pub mod v1_5;
 
 /// Used by RakNet
 pub const MAGIC: [u8; 16] = [
