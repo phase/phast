@@ -1,9 +1,20 @@
 use network::connection;
 use network::types::*;
+use std::any::Any;
 
-pub trait Packet {
+pub trait Packet: AsAny {
     fn read(&mut self, bytes: Vec<u8>) -> bool;
     fn write(&self) -> Vec<u8>;
+}
+
+pub trait AsAny {
+    fn as_any(self: Box<Self>) -> Box<Any>;
+}
+
+impl<T: Packet + 'static> AsAny for T {
+    fn as_any(self: Box<Self>) -> Box<Any> {
+        self
+    }
 }
 
 /// Read type from bytes
