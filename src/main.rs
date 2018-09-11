@@ -1,6 +1,4 @@
 extern crate concurrent_hashmap;
-#[macro_use]
-extern crate lazy_static;
 
 use std::net::{TcpStream, TcpListener, UdpSocket};
 use std::io::{Write, Read};

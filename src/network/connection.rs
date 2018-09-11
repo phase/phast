@@ -37,8 +37,8 @@ impl Connection {
             },
             protocol: Box::new(
                 match socket {
-                    SocketWrapper::TCP(_) => *v1_12::ProtocolJava_1_12,
-                    SocketWrapper::UDP(_) => *v1_12::ProtocolJava_1_12,
+                    SocketWrapper::TCP(_) => v1_12::ProtocolJava_1_12,
+                    SocketWrapper::UDP(_) => v1_12::ProtocolJava_1_12,
                 }
             ),
             socket,
