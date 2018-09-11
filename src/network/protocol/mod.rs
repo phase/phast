@@ -12,7 +12,7 @@ pub enum ProtocolType {
 
 /// Packets in different states have different id counters.
 /// When a state changes, the id counter resets.
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Clone, Copy)]
 pub enum State {
     /// first connecting to the server
     JavaHandshake,

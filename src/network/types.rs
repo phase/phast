@@ -3,18 +3,18 @@ use std::mem;
 use network::packet::*;
 use network::protocol::bedrock;
 
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct VarInt(pub i32);
 
 /// Used by the Java protocol
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct VarIntLengthPrefixedString(pub String);
 
 /// Used by the Bedrock protocol
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct ShortLengthPrefixedString(pub String);
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct RakNetMagic(pub [u8; 16]);
 
 impl ReadField for u8 {

@@ -2,8 +2,10 @@ use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
 use std::io::{Write, Read};
 use std::sync::Arc;
 use std::mem::transmute;
+use std::any::Any;
 
 use network;
+use network::packet;
 use network::protocol::*;
 use network::protocol::bedrock::*;
 use network::protocol::java::*;
@@ -80,140 +82,81 @@ impl Connection {
     pub fn start_packet_read(&mut self) -> bool {
         let bytes = &self.unprocessed_buffer.clone();
         let mut index: usize = 0;
-        match self.socket {
-            SocketWrapper::TCP(_) => {
-                // java edition
-                let length = match network::read_varint(bytes, index) {
-                    Some((l, v)) => {
-                        index += v;
-                        l
-                    }
-                    None => return false
-                };
 
-                if bytes.len() < (length as usize) {
-                    // we don't have enough data yet
-                    return false;
+        if self.is_tcp() {
+            // java edition
+            let length = match network::read_varint(bytes, index) {
+                Some((l, v)) => {
+                    index += v;
+                    l
                 }
+                None => return false
+            };
 
-                let id = match network::read_varint(bytes, index) {
-                    Some((l, v)) => {
-                        index += v;
-                        l
-                    }
-                    None => return false
-                };
-
-                // TODO: read packet based on protocol & id
-                {
-                    println!("Found TCP packet: length={} id={}", length, id);
-                    let remainder = &bytes[index..];
-                    println!("  packet_data: {:X?}", remainder);
-
-                    if id == 0 && length > 0 {
-                        println!("TCP C->S Handshake Packet");
-
-                        let protocol_version = match network::read_varint(bytes, index) {
-                            Some((l, v)) => {
-                                index += v;
-                                l
-                            }
-                            None => return false
-                        };
-                        println!("index {}/{}| protocol_version {}", index, length, protocol_version);
-
-                        let address = match network::read_varint_string(bytes, index) {
-                            Some((s, v)) => {
-                                index += v;
-                                s
-                            }
-                            None => return false
-                        };
-                        println!("index {}/{}| address {}", index, length, address);
-
-                        let port = match network::read_ushort(bytes, index) {
-                            Some((s, v)) => {
-                                index += v;
-                                s
-                            }
-                            None => return false
-                        };
-                        println!("index {}/{}| port {}", index, length, port);
-
-                        let next_state = match network::read_varint(bytes, index) {
-                            Some((l, v)) => {
-                                index += v;
-                                l
-                            }
-                            None => return false
-                        };
-                        println!("index {}/{}| next_state {}", index, length, next_state);
-                    }
-                }
-                index = length as usize + 1;
-
-                if bytes.len() > index {
-                    let remainder = &bytes[index..];
-                    println!("  remainder: {:X?}", remainder);
-                    self.unprocessed_buffer = remainder.to_vec();
-                    return false;
-                } else {
-                    return true;
-                }
+            if bytes.len() < (length as usize) {
+                // we don't have enough data yet
+                return false;
             }
-            SocketWrapper::UDP(_) => {
-                // bedrock edition
+
+            let id = match network::read_varint(bytes, index) {
+                Some((l, v)) => {
+                    index += v;
+                    l
+                }
+                None => return false
+            };
+
+            // get a vec of just the packet's bytes
+            let packet_bytes = (&bytes[index..((length as usize) + 1)]).to_vec();
+
+            // read the packet from the protocol
+            if let Some(packet) = self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
+                let any: Box<Any> = packet.as_any();
+                if let Some(handshake) = any.downcast_ref::<v1_12::HandshakePacket>() {
+                    println!("GOT HANDSHAKE PACKET!!! {:?}", handshake);
+                }
+            } else {
+                return false;
+            }
+
+            index = length as usize + 1;
+
+            if bytes.len() > index {
                 let remainder = &bytes[index..];
-                println!("  Bytes: {:X?}", remainder);
-                let id = bytes[0];
-                index += 1;
-                if id == 1 {
-                    let ping_time = match network::read_u64(bytes, index) {
-                        Some((l, v)) => {
-                            index += v;
-                            l
-                        }
-                        None => return false
-                    };
-                    println!("index {}/{}| ping_time {}", index, bytes.len(), ping_time);
-                    // skip magic
-                    index += 16;
+                println!("  remainder: {:X?}", remainder);
+                self.unprocessed_buffer = remainder.to_vec();
+                return false;
+            } else {
+                return true;
+            }
+        } else if self.is_udp() {
+            // bedrock edition
+            let remainder = &bytes[index..];
+            println!("  Bytes: {:X?}", remainder);
+            let id = bytes[0] as i32;
+            index += 1;
 
-                    let guid = match network::read_u64(bytes, index) {
-                        Some((l, v)) => {
-                            index += v;
-                            l
-                        }
-                        None => return false
-                    };
+            // get a vec of just the packet's bytes
+            // TODO: length of packet?
+            let packet_bytes = (&bytes[index..]).to_vec();
 
-                    // respond with an UnconnectedPong
-
-                    let mut ret = vec![0x1Cu8];
-                    // ping time
-                    ret.append(&mut (unsafe { transmute::<u64, [u8; 8]>(ping_time.to_be()) })[..].to_vec());
-//                    ret.append(&mut [0xE2u8].to_vec());
-                    // server guid
-//                    ret.append(&mut (unsafe { transmute::<u64, [u8; 8]>(12123434u64.to_be()) })[..].to_vec());
-                    ret.append(&mut (unsafe { transmute::<u64, [u8; 8]>(guid.to_be()) })[..].to_vec());
-                    ret.append(&mut network::protocol::bedrock::MAGIC.to_vec());
-                    // MCPE;motd;protocol version;version string (can be anything?);players online;max players;server guid;motd line two?;Survival (was in MiNet);
-                    let motd = "MCPE;test;282;1.6.0;1;2;9999;test2;Survival;";
-                    ret.append(&mut [0x0u8, 0x2Cu8].to_vec());
-                    ret.append(&mut String::from(motd).into_bytes());
-
-                    self.write(&ret[..]);
-                } else {
-                    println!("SUCCESS");
+            // read the packet from the protocol
+            if let Some(packet) = self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
+                let any: Box<Any> = packet.as_any();
+                if let Some(handshake) = any.downcast_ref::<raknet::UnconnectedPingPacket>() {
+                    println!("GOT UNCONNECTED_PING PACKET!!! {:?}", handshake);
                 }
-                if bytes.len() > index {
-                    let remainder = &bytes[index..];
-                    println!("  remainder: {:X?}", remainder);
-                    self.unprocessed_buffer = remainder.to_vec();
+            } else {
+                return false;
+            }
+
+            if bytes.len() > index {
+                let remainder = &bytes[index..];
+                println!("  remainder: {:X?}", remainder);
+                self.unprocessed_buffer = remainder.to_vec();
 //                    return false;
-                } else {
-                    return true;
-                }
+            } else {
+                return true;
             }
         }
 

@@ -32,7 +32,7 @@ pub trait WriteField where Self: Sized {
 #[macro_export]
 macro_rules! packet {
     ($packet_name:ident, $($field:ident: $t:ty),*) => {
-        #[derive(Clone, Default)]
+        #[derive(Clone, Default, Debug)]
         pub struct $packet_name {
             $(
                 $field: $t,
