@@ -63,6 +63,36 @@ impl ReadField for VarInt {
     }
 }
 
+impl WriteField for VarInt {
+    fn write(&self) -> Vec<u8> {
+        /* Define some helpful values for dealing with varints */
+        let msb: u8 = 0b10000000;
+        let mask: u32 = !(msb as u32);
+
+        /* Make the value unsigned to avoid weird signed behavior when bit-shifting */
+        let mut val = self.0 as u32;
+
+        let mut vec: Vec<u8> = Vec::new();
+        for _ in 0..5 {
+            /* Get the last 7 bits and cast to an u8.
+             * Also right-shift the value to advance further. */
+            let mut tmp = (val & mask) as u8;
+            val >>= 7;
+
+            /* If there's still something to write, set the most significant bit and continue */
+            if val != 0 {
+                tmp |= msb;
+                vec.push(tmp);
+            } else {
+                vec.push(tmp);
+                break;
+            }
+        }
+
+        vec
+    }
+}
+
 impl ReadField for VarIntLengthPrefixedString {
     fn read(buf: &Vec<u8>, mut index: usize) -> Option<(VarIntLengthPrefixedString, usize)> {
         let mut varint_size = 0;
@@ -95,6 +125,17 @@ impl ReadField for VarIntLengthPrefixedString {
     }
 }
 
+impl WriteField for VarIntLengthPrefixedString {
+    fn write(&self) -> Vec<u8> {
+        let s = &self.0;
+        let length = s.len();
+        let mut buf = VarInt(length as i32).write();
+        // TODO: Remove clone
+        buf.append(&mut s.clone().into_bytes());
+        buf
+    }
+}
+
 impl ReadField for ShortLengthPrefixedString {
     fn read(buf: &Vec<u8>, mut index: usize) -> Option<(ShortLengthPrefixedString, usize)> {
         let length = match <u16 as ReadField>::read(buf, index) {
@@ -120,6 +161,22 @@ impl ReadField for ShortLengthPrefixedString {
     }
 }
 
+impl WriteField for ShortLengthPrefixedString {
+    fn write(&self) -> Vec<u8> {
+        let s = &self.0;
+        // TODO: Remove clone
+        let length = s.clone().len() as u16;
+
+        let mut buf = vec![
+            ((length & 0xFF00) >> 8) as u8,
+            (length & 0xFF) as u8
+        ];
+
+        buf.append(&mut s.clone().into_bytes());
+        buf
+    }
+}
+
 impl ReadField for u16 {
     fn read(buf: &Vec<u8>, mut index: usize) -> Option<(u16, usize)> {
         if buf.len() < index + 2 {
@@ -135,6 +192,15 @@ impl ReadField for u16 {
         }
 
         Some((s, 2))
+    }
+}
+
+impl WriteField for u16 {
+    fn write(&self) -> Vec<u8> {
+        vec![
+            (self >> 8) as u8,
+            (self & 0xFF) as u8,
+        ]
     }
 }
 

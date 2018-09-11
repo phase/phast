@@ -53,5 +53,3 @@ macro_rules! packet {
         }
     };
 }
-
-packet!(FirstPacket, a: u8, b: u8);
