@@ -63,7 +63,7 @@ macro_rules! protocol {
             fn read(&self, id: i32, state: State, bound: Bound, bytes: Vec<u8>) -> Option<Box<Packet>> {
                 let mut packet: Option<Box<Packet>> = match (id, state, bound) {
                     $(
-                        ($id, $state, $bound) => Some(Box::new($packet::new())),
+                        ($id, $state, $bound) => Some(Box::new($packet::default())),
                     )*
                     _ => None
                 };

@@ -40,8 +40,12 @@ macro_rules! packet {
         }
 
         impl $packet_name {
-            fn new() -> Self {
-                Self { ..Default::default() }
+            pub fn new($($field: $t,)*) -> Self {
+                Self {
+                    $(
+                        $field,
+                    )*
+                }
             }
         }
 
