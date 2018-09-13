@@ -7,18 +7,21 @@ pub mod types;
 
 use std::mem;
 use std::net::SocketAddr;
+use std::sync::Mutex;
 use std::collections::HashMap;
 
 use concurrent_hashmap::*;
 
 pub struct ConnectionManager {
-    pub connections: ConcHashMap<SocketAddr, connection::Connection>
+    pub connections: ConcHashMap<SocketAddr, connection::Connection>,
+    pub tcp_addresses: Mutex<Vec<SocketAddr>>,
 }
 
 impl ConnectionManager {
     pub fn new() -> ConnectionManager {
         ConnectionManager {
-            connections: ConcHashMap::<SocketAddr, connection::Connection>::new()
+            connections: ConcHashMap::<SocketAddr, connection::Connection>::new(),
+            tcp_addresses: Mutex::new(Vec::with_capacity(20)),
         }
     }
 }

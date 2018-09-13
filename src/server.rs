@@ -1,6 +1,7 @@
 use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
 use std::io::{Write, Read};
 use std::thread;
+use std::time::*;
 use std::thread::JoinHandle;
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::Arc;
@@ -105,15 +106,21 @@ impl Server {
     /// Starts listening for incoming connections and adds them to the `connection_manager`
     fn start_tcp_listener(connection_manager: Arc<ConnectionManager>) {
         let listener = TcpListener::bind("0.0.0.0:25565").unwrap();
-        listener.set_nonblocking(true);
+        // this thread can be blocking since it isn't locking anything
+        listener.set_nonblocking(false);
         println!("TCP on 0.0.0.0:25565");
 
         for stream in listener.incoming() {
             match stream {
                 Ok(mut socket) => {
+                    // these connections need to be non-blocking so we don't hog
+                    // the lock to the connection in the thread below
+                    socket.set_nonblocking(true);
                     let address = socket.peer_addr().unwrap();
                     let mut connection = Connection::new(address, SocketWrapper::TCP(socket));
                     connection_manager.connections.insert(address, connection);
+                    let mut tcp_addresses = connection_manager.tcp_addresses.lock().unwrap();
+                    tcp_addresses.push(address);
                     println!("[TCP-Listener]: Accepted new connection from {}", address);
                 }
                 Err(e) => {
@@ -124,17 +131,10 @@ impl Server {
     }
 
     fn start_tcp_reads(connection_manager: Arc<ConnectionManager>, byte_sender: Sender<(SocketAddr, Vec<u8>)>) {
+        let read_tick = Duration::from_millis(100);
         loop {
-            // iterate over the list and only pick out the ones we need
-            // this is separate so that we don't hog the list while we read
-            let mut tcp_addresses = Vec::new();
-            for (address, mut connection) in connection_manager.connections.iter() {
-                if connection.is_tcp() {
-                    tcp_addresses.push(address);
-                }
-            }
-
-            for address in tcp_addresses {
+            let now = SystemTime::now();
+            for address in connection_manager.tcp_addresses.lock().unwrap().iter() {
                 if let Some(mut connection) = connection_manager.connections.find_mut(&address) {
                     match connection.get().socket {
                         SocketWrapper::TCP(ref mut stream) => {
@@ -149,6 +149,14 @@ impl Server {
                         _ => {}
                     };
                 }
+            }
+            match now.elapsed() {
+                Ok(elapsed) => {
+                    let sleep = read_tick - elapsed;
+//                    println!("[TCP-Read]: Sleeping for {:?}", sleep);
+                    thread::sleep(sleep);
+                }
+                Err(_) => {}
             }
         }
     }
