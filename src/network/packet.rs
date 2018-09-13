@@ -2,7 +2,7 @@ use network::connection;
 use network::types::*;
 use std::any::Any;
 
-pub trait Packet: AsAny {
+pub trait Packet: AsAny + Send + Sync {
     fn read(&mut self, bytes: Vec<u8>) -> bool;
     fn write(&self) -> Vec<u8>;
 }

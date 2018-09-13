@@ -1,11 +1,13 @@
 use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
 use std::io::{Write, Read};
 use std::sync::Arc;
+use std::sync::mpsc::{channel, Sender, Receiver};
 use std::mem::transmute;
 use std::any::Any;
+use std::{thread, time};
 
 use network;
-use network::packet;
+use network::packet::*;
 use network::protocol::*;
 use network::protocol::bedrock::*;
 use network::protocol::java::*;
@@ -63,23 +65,39 @@ impl Connection {
     }
 
     // might need a mutex so we only handle one read at a time
-    pub fn handle_read(&mut self, bytes: &mut Vec<u8>) {
+    pub fn handle_read(&mut self, bytes: &mut Vec<u8>) -> Vec<Box<Packet>> {
+        let mut packets = Vec::with_capacity(1);
         self.unprocessed_buffer.append(bytes);
-        if !self.has_started_packet {
-            self.has_started_packet = true;
-            let result = self.start_packet_read();
-            // if !result, we didn't read the full packet and we need to wait for more data
-            // to come in
-            if result {
-                self.has_started_packet = false;
-                self.unprocessed_buffer.clear()
+        while self.unprocessed_buffer.len() > 0 && !self.has_started_packet {
+            if !self.has_started_packet {
+                self.has_started_packet = true;
+                let result = self.start_packet_read();
+                match result {
+                    Some(packet) => {
+                        self.has_started_packet = false;
+                        self.unprocessed_buffer.clear();
+                        packets.push(packet)
+                    }
+                    None => {
+                        // if !result, we didn't read the full packet and we need to wait for more data
+                        // to come in
+                        self.has_started_packet = true;
+                    }
+                }
+            } else {
+                match self.start_packet_read() {
+                    Some(packet) => packets.push(packet),
+                    None => {}
+                }
             }
-        } else {
-            self.start_packet_read();
         }
+        if self.unprocessed_buffer.len() > 0 {
+            println!("Unused bytes: {:X?}", self.unprocessed_buffer);
+        }
+        packets
     }
 
-    pub fn start_packet_read(&mut self) -> bool {
+    pub fn start_packet_read(&mut self) -> Option<Box<Packet>> {
         let bytes = &self.unprocessed_buffer.clone();
         let mut index: usize = 0;
 
@@ -90,49 +108,48 @@ impl Connection {
                     index += v;
                     l
                 }
-                None => return false
+                None => return None
             };
+
+            if length == 1 {
+                // XXX: this is a weird ping thing. it'll only send [1, 0]
+                self.unprocessed_buffer = (&bytes[2..]).to_vec();
+                return None;
+            }
 
             if bytes.len() < (length as usize) {
                 // we don't have enough data yet
-                return false;
+                return None;
             }
 
+            let mut id_length = 0;
             let id = match network::read_varint(bytes, index) {
                 Some((l, v)) => {
                     index += v;
+                    id_length = v;
                     l
                 }
-                None => return false
+                None => return None
             };
 
             // get a vec of just the packet's bytes
             let packet_bytes = (&bytes[index..((length as usize) + 1)]).to_vec();
 
             // read the packet from the protocol
-            if let Some(packet) = self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
-                let any: Box<Any> = packet.as_any();
-                if let Some(handshake) = any.downcast_ref::<v1_12::HandshakePacket>() {
-                    println!("GOT HANDSHAKE PACKET!!! {:?}", handshake);
-                }
-            } else {
-                return false;
-            }
+            let packet = match self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
+                Some(packet) => packet,
+                None => return None
+            };
 
-            index = length as usize + 1;
+            index += length as usize - id_length;
 
-            if bytes.len() > index {
-                let remainder = &bytes[index..];
-                println!("  remainder: {:X?}", remainder);
-                self.unprocessed_buffer = remainder.to_vec();
-                return false;
-            } else {
-                return true;
-            }
+            let remainder = &bytes[index..];
+            self.unprocessed_buffer = remainder.to_vec();
+
+            Some(packet)
         } else if self.is_udp() {
             // bedrock edition
             let remainder = &bytes[index..];
-            println!("  Bytes: {:X?}", remainder);
             let id = bytes[0] as i32;
             index += 1;
 
@@ -141,44 +158,19 @@ impl Connection {
             let packet_bytes = (&bytes[index..]).to_vec();
 
             // read the packet from the protocol
-            if let Some(packet) = self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
-                let any: Box<Any> = packet.as_any();
-                if let Some(handshake) = any.downcast_ref::<raknet::UnconnectedPingPacket>() {
-                    println!("GOT UNCONNECTED_PING PACKET!!! {:?}", handshake);
-                }
-            } else {
-                return false;
-            }
+            let packet = match self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
+                Some(packet) => packet,
+                None => return None
+            };
 
-            if bytes.len() > index {
-                let remainder = &bytes[index..];
-                println!("  remainder: {:X?}", remainder);
-                self.unprocessed_buffer = remainder.to_vec();
-//                    return false;
-            } else {
-                return true;
-            }
+            // TODO: Not this hack. Maybe return the length of the packet from protocol#read ?
+            let remainder = &bytes[index..(packet.write().len())];
+            self.unprocessed_buffer = remainder.to_vec();
+
+            Some(packet)
+        } else {
+            None
         }
-
-        true
-    }
-
-    pub fn read(&mut self) -> usize {
-        let mut buf = vec![0; 64];
-        let mut length = 0;
-        match self.socket {
-            SocketWrapper::TCP(ref mut stream) => {
-                length = stream.read(&mut buf).unwrap_or(0);
-            }
-            SocketWrapper::UDP(ref mut socket) => {
-                // I don't think there's a way to explicitly read from a UDP address
-            }
-        };
-        if length > 0 {
-            self.handle_read(&mut buf[..length].to_vec());
-        }
-
-        length
     }
 
     /// Writes `bytes` to the connected client
