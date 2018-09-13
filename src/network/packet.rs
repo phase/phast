@@ -3,6 +3,7 @@ use network::types::*;
 use std::any::Any;
 
 pub trait Packet: AsAny + Send + Sync {
+    fn name(&self) -> &str;
     fn read(&mut self, bytes: Vec<u8>) -> bool;
     fn write(&self) -> Vec<u8>;
 }
@@ -50,6 +51,10 @@ macro_rules! packet {
         }
 
         impl Packet for $packet_name {
+            fn name(&self) -> &str {
+                stringify!($packet_name)
+            }
+
             fn read(&mut self, bytes: Vec<u8>) -> bool {
                 let mut index = 0usize;
                 $(

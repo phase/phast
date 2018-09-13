@@ -7,6 +7,7 @@ use std::any::Any;
 use std::{thread, time};
 
 use network;
+use network::types::*;
 use network::packet::*;
 use network::protocol::*;
 use network::protocol::bedrock::*;
@@ -128,10 +129,10 @@ impl Connection {
             }
 
             // java edition
-            let length = match network::read_varint(bytes, index) {
+            let length = match <VarInt as ReadField>::read(bytes, index) {
                 Some((l, v)) => {
                     index += v;
-                    l
+                    l.0
                 }
                 None => return NeedMoreData
             };
@@ -143,11 +144,11 @@ impl Connection {
             }
 
             let mut id_length = 0;
-            let id = match network::read_varint(bytes, index) {
+            let id = match  <VarInt as ReadField>::read(bytes, index) {
                 Some((l, v)) => {
                     index += v;
                     id_length = v;
-                    l
+                    l.0
                 }
                 None => return NeedMoreData
             };

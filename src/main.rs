@@ -13,7 +13,5 @@ use network::*;
 fn main() {
     let mut server = Server::new();
     server.start();
-    for join_handle in server.threads {
-        join_handle.join().unwrap();
-    }
+    server.join_network_threads();
 }
