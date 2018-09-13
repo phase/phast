@@ -27,8 +27,15 @@ pub struct Connection {
     pub protocol: Box<Protocol>,
     // processing packets
     unprocessed_buffer: Vec<u8>,
-    has_started_packet: bool,
 }
+
+enum PacketResult {
+    CompletePacket(Box<Packet>),
+    NeedMoreData,
+    Skipped(usize),
+}
+
+use self::PacketResult::*;
 
 impl Connection {
     /// Constructs a new Connection from an Address and a SocketWrapper.
@@ -46,7 +53,6 @@ impl Connection {
             },
             socket,
             unprocessed_buffer: vec![],
-            has_started_packet: false,
         }
     }
 
@@ -64,30 +70,22 @@ impl Connection {
         }
     }
 
-    // might need a mutex so we only handle one read at a time
+    // might need a lock so we only handle one read at a time
     pub fn handle_read(&mut self, bytes: &mut Vec<u8>) -> Vec<Box<Packet>> {
         let mut packets = Vec::with_capacity(1);
         self.unprocessed_buffer.append(bytes);
-        while self.unprocessed_buffer.len() > 0 && !self.has_started_packet {
-            if !self.has_started_packet {
-                self.has_started_packet = true;
-                let result = self.start_packet_read();
-                match result {
-                    Some(packet) => {
-                        self.has_started_packet = false;
-                        self.unprocessed_buffer.clear();
-                        packets.push(packet)
-                    }
-                    None => {
-                        // if !result, we didn't read the full packet and we need to wait for more data
-                        // to come in
-                        self.has_started_packet = true;
-                    }
+        let mut needs_more_data = false;
+        while self.unprocessed_buffer.len() > 0 && !needs_more_data {
+            match self.start_packet_read() {
+                CompletePacket(packet) => {
+                    self.unprocessed_buffer.clear();
+                    packets.push(packet)
                 }
-            } else {
-                match self.start_packet_read() {
-                    Some(packet) => packets.push(packet),
-                    None => {}
+                NeedMoreData => {
+                    needs_more_data = true;
+                }
+                Skipped(amount) => {
+                    self.unprocessed_buffer = (&self.unprocessed_buffer[amount..]).to_vec();
                 }
             }
         }
@@ -97,29 +95,51 @@ impl Connection {
         packets
     }
 
-    pub fn start_packet_read(&mut self) -> Option<Box<Packet>> {
+    pub fn start_packet_read(&mut self) -> PacketResult {
         let bytes = &self.unprocessed_buffer.clone();
         let mut index: usize = 0;
 
         if self.is_tcp() {
+            if bytes.len() >= 2 {
+                let first = bytes[0];
+                let second = bytes[1];
+                if first == 1 && second == 0 {
+                    // XXX: this is a weird ping thing. it'll only send [1, 0]
+                    println!("Skipping weird ping");
+                    return Skipped(2);
+                }
+                if bytes.len() >= 3 {
+                    let third = bytes[2];
+                    if first == 0xFE && second == 0x01 && third == 0xFA {
+                        println!("Skipping legacy ping");
+                        // XXX: Legacy Ping 1.6
+                        index = 3;
+                        for s in 0..2 {
+                            let s1 = bytes[index];
+                            index += 1;
+                            let s2 = bytes[index];
+                            index += 1;
+                            let data_size: u16 = ((s1 as u16) << 8) | s2 as u16;
+                            index += (data_size as i32 * (2 - s)) as usize;
+                        }
+                        return Skipped(index);
+                    }
+                }
+            }
+
             // java edition
             let length = match network::read_varint(bytes, index) {
                 Some((l, v)) => {
                     index += v;
                     l
                 }
-                None => return None
+                None => return NeedMoreData
             };
 
-            if length == 1 {
-                // XXX: this is a weird ping thing. it'll only send [1, 0]
-                self.unprocessed_buffer = (&bytes[2..]).to_vec();
-                return None;
-            }
 
             if bytes.len() < (length as usize) {
                 // we don't have enough data yet
-                return None;
+                return NeedMoreData;
             }
 
             let mut id_length = 0;
@@ -129,7 +149,7 @@ impl Connection {
                     id_length = v;
                     l
                 }
-                None => return None
+                None => return NeedMoreData
             };
 
             // get a vec of just the packet's bytes
@@ -138,7 +158,7 @@ impl Connection {
             // read the packet from the protocol
             let packet = match self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
                 Some(packet) => packet,
-                None => return None
+                None => return NeedMoreData
             };
 
             index += length as usize - id_length;
@@ -146,7 +166,7 @@ impl Connection {
             let remainder = &bytes[index..];
             self.unprocessed_buffer = remainder.to_vec();
 
-            Some(packet)
+            CompletePacket(packet)
         } else if self.is_udp() {
             // bedrock edition
             let remainder = &bytes[index..];
@@ -160,16 +180,16 @@ impl Connection {
             // read the packet from the protocol
             let packet = match self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
                 Some(packet) => packet,
-                None => return None
+                None => return NeedMoreData
             };
 
             // TODO: Not this hack. Maybe return the length of the packet from protocol#read ?
             let remainder = &bytes[index..(packet.write().len())];
             self.unprocessed_buffer = remainder.to_vec();
 
-            Some(packet)
+            CompletePacket(packet)
         } else {
-            None
+            NeedMoreData
         }
     }
 
