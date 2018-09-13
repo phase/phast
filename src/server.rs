@@ -16,29 +16,23 @@ pub struct Server {
     // Packet Channel
     pub packet_sender: Sender<(SocketAddr, Box<Packet>)>,
     pub packet_receiver: Receiver<(SocketAddr, Box<Packet>)>,
-    // Unprocessed Data Channel
-    pub unprocessed_sender: Sender<(SocketAddr, Vec<u8>)>,
 }
 
 impl Server {
     pub fn new() -> Self {
         let (packet_sender, packet_receiver) = channel::<(SocketAddr, Box<Packet>)>();
-        let (unprocessed_sender, unprocessed_receiver) = channel::<(SocketAddr, Vec<u8>)>();
 
         let mut this = Self {
             connection_manager: Arc::new(ConnectionManager::new()),
             threads: Vec::with_capacity(4),
             packet_sender,
             packet_receiver,
-            unprocessed_sender,
         };
-
-        this.start(unprocessed_receiver);
-
         this
     }
 
-    pub fn start(&mut self, unprocessed_receiver: Receiver<(SocketAddr, Vec<u8>)>) {
+    pub fn start(&mut self) {
+        let (unprocessed_sender, unprocessed_receiver) = channel::<(SocketAddr, Vec<u8>)>();
         let tcp_listener_thread = thread::Builder::new().name("TCP-Listener".into());
         let tcp_listener_handle = tcp_listener_thread.spawn({
             let connection_manager = self.connection_manager.clone();
@@ -51,7 +45,7 @@ impl Server {
         let tcp_read_thread = thread::Builder::new().name("TCP-Read".into());
         let tcp_read_handle = tcp_read_thread.spawn({
             let connection_manager = self.connection_manager.clone();
-            let unprocessed_sender = self.unprocessed_sender.clone();
+            let unprocessed_sender = unprocessed_sender.clone();
             move || {
                 Server::start_tcp_reads(connection_manager, unprocessed_sender);
             }
@@ -61,7 +55,7 @@ impl Server {
         let udp_thread = thread::Builder::new().name("UDP".into());
         let udp_handle = udp_thread.spawn({
             let connection_manager = self.connection_manager.clone();
-            let unprocessed_sender = self.unprocessed_sender.clone();
+            let unprocessed_sender = unprocessed_sender.clone();
             move || {
                 Server::start_udp(connection_manager, unprocessed_sender);
             }
