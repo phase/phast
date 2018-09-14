@@ -101,30 +101,23 @@ impl Connection {
         let mut index: usize = 0;
 
         if self.is_tcp() {
-            if bytes.len() >= 2 {
+            if bytes.len() >= 3 {
                 let first = bytes[0];
                 let second = bytes[1];
-                if first == 1 && second == 0 {
-                    // XXX: this is a weird ping thing. it'll only send [1, 0]
-                    println!("Skipping weird ping");
-                    return Skipped(2);
-                }
-                if bytes.len() >= 3 {
-                    let third = bytes[2];
-                    if first == 0xFE && second == 0x01 && third == 0xFA {
-                        println!("Skipping legacy ping");
-                        // XXX: Legacy Ping 1.6
-                        index = 3;
-                        for s in 0..2 {
-                            let s1 = bytes[index];
-                            index += 1;
-                            let s2 = bytes[index];
-                            index += 1;
-                            let data_size: u16 = ((s1 as u16) << 8) | s2 as u16;
-                            index += (data_size as i32 * (2 - s)) as usize;
-                        }
-                        return Skipped(index);
+                let third = bytes[2];
+                if first == 0xFE && second == 0x01 && third == 0xFA {
+                    println!("Skipping legacy ping");
+                    // XXX: Legacy Ping 1.6
+                    index = 3;
+                    for s in 0..2 {
+                        let s1 = bytes[index];
+                        index += 1;
+                        let s2 = bytes[index];
+                        index += 1;
+                        let data_size: u16 = ((s1 as u16) << 8) | s2 as u16;
+                        index += (data_size as i32 * (2 - s)) as usize;
                     }
+                    return Skipped(index);
                 }
             }
 
@@ -144,7 +137,7 @@ impl Connection {
             }
 
             let mut id_length = 0;
-            let id = match  <VarInt as ReadField>::read(bytes, index) {
+            let id = match <VarInt as ReadField>::read(bytes, index) {
                 Some((l, v)) => {
                     index += v;
                     id_length = v;
@@ -194,6 +187,15 @@ impl Connection {
         }
     }
 
+    pub fn send_packet(&mut self, packet: Box<Packet>) {
+        match self.protocol.write(packet, Bound::Clientbound) {
+            Some(bytes) => {
+                self.write(bytes.as_slice());
+            }
+            None => {}
+        }
+    }
+
     /// Writes `bytes` to the connected client
     pub fn write(&mut self, bytes: &[u8]) {
         match self.socket {
@@ -201,7 +203,6 @@ impl Connection {
                 stream.write(bytes);
             }
             SocketWrapper::UDP(ref mut socket) => {
-                println!("UDP SEND: {:X?}", bytes);
                 socket.send_to(bytes, self.address);
             }
         }

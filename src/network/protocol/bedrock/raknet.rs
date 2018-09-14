@@ -123,6 +123,7 @@ packet!(UnconnectedPongPacket,
     ping_time: u64,
     guid: u64,
     magic: RakNetMagic,
+    // MCPE;motd;protocol version;version string (can be anything?);players online;max players;server guid;motd line two?;Survival (was in MiNet);
     motd: ShortLengthPrefixedString
 );
 

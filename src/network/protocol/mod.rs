@@ -4,7 +4,7 @@ use network::types::*;
 use std::any::Any;
 use std::mem;
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum ProtocolType {
     JavaEdition,
     BedrockEdition,
@@ -12,7 +12,7 @@ pub enum ProtocolType {
 
 /// Packets in different states have different id counters.
 /// When a state changes, the id counter resets.
-#[derive(Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 pub enum State {
     /// first connecting to the server
     JavaHandshake,
@@ -29,7 +29,7 @@ pub enum State {
     BedrockMinecraft,
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Bound {
     /// Going to the Client
     Clientbound,
@@ -78,35 +78,28 @@ macro_rules! protocol {
 
             fn write(&self, packet: Box<Packet>, bound: Bound) -> Option<Vec<u8>> {
                 let any: Box<Any> = packet.as_any();
-                let id: Option<i32> = {
-                    let mut res: Option<i32> = None;
-                    $(
-                        if res == None {
-                            if let $bound = bound {
-                                if let Some(t) = any.downcast_ref::<$packet>() {
-                                    res = Some($id);
-                                }
+                $(
+                    if let $bound = bound {
+                        if let Some(packet) = any.downcast_ref::<$packet>() {
+                            let id = $id;
+                            if $protocol_type == ProtocolType::JavaEdition {
+                                let mut buf = VarInt(id).write();
+                                buf.append(&mut packet.write());
+                                // prepend length as a varint
+                                let mut full = VarInt(buf.len() as i32).write();
+                                full.append(&mut buf);
+                                return Some(full);
+                            } else if $protocol_type == ProtocolType::BedrockEdition {
+                                let mut buf = vec![id as u8];
+                                buf.append(&mut packet.write());
+                                return Some(buf);
+                            } else {
+                                return None;
                             }
                         }
-                    )*
-                    res
-                };
-                if let Some(id) = id {
-                    let packet: Box<Packet> = unsafe { mem::transmute_copy(&any) };
-                    if $protocol_type == ProtocolType::JavaEdition {
-                        let mut buf = VarInt(id).write();
-                        buf.append(&mut packet.write());
-                        Some(buf)
-                    } else if $protocol_type == ProtocolType::BedrockEdition {
-                        let mut buf = vec![id as u8];
-                        buf.append(&mut packet.write());
-                        Some(buf)
-                    } else {
-                        None
                     }
-                } else {
-                    None
-                }
+                )*
+                None
             }
         }
     };

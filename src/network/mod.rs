@@ -104,7 +104,7 @@ impl NetworkManager {
         loop {
             match bytes.recv() {
                 Ok((address, mut bytes)) => {
-                    println!("[Packet-Parse]: Received Bytes from {}: {:X?}", address, bytes);
+//                    println!("[Packet-Parse]: Received Bytes from {}: {:X?}", address, bytes);
                     if let Some(mut connection) = connection_manager.connections.find_mut(&address) {
                         let packets = (*connection.get()).handle_read(&mut bytes);
                         println!("[Packet-Parse]: Received Packets from {}: {}", address, packets.len());
@@ -125,7 +125,7 @@ impl NetworkManager {
         let listener = TcpListener::bind("0.0.0.0:25565").unwrap();
         // this thread can be blocking since it isn't locking anything
         listener.set_nonblocking(false);
-        println!("TCP on 0.0.0.0:25565");
+        println!("[TCP-Listener] Binding server to on 0.0.0.0:25565");
 
         for stream in listener.incoming() {
             match stream {
@@ -181,7 +181,7 @@ impl NetworkManager {
     // Bedrock Edition uses UDP
     fn start_udp(connection_manager: Arc<ConnectionManager>, byte_sender: Sender<(SocketAddr, Vec<u8>)>) {
         let socket = Arc::new(UdpSocket::bind("0.0.0.0:19132").unwrap());
-        println!("UDP on 0.0.0.0:19132");
+        println!("[UDP] Binding server to 0.0.0.0:19132");
 
         loop {
             let mut buf = vec![0; 64];

@@ -16,6 +16,7 @@ pub struct ShortLengthPrefixedString(pub String);
 
 #[derive(Clone, Default, Debug)]
 pub struct RakNetMagic(pub [u8; 16]);
+pub const RAKNET_MAGIC: RakNetMagic = RakNetMagic(bedrock::MAGIC);
 
 impl ReadField for u8 {
     fn read(bytes: &Vec<u8>, index: usize) -> Option<(u8, usize)> {

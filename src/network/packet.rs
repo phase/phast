@@ -36,7 +36,7 @@ macro_rules! packet {
         #[derive(Clone, Default, Debug)]
         pub struct $packet_name {
             $(
-                $field: $t,
+                pub $field: $t,
             )*
         }
 
