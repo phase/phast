@@ -73,6 +73,7 @@ impl Connection {
 
     // might need a lock so we only handle one read at a time
     pub fn handle_read(&mut self, bytes: &mut Vec<u8>) -> Vec<Box<Packet>> {
+        println!("first byte: {}", bytes[0]);
         let mut packets = Vec::with_capacity(1);
         self.unprocessed_buffer.append(bytes);
         let mut needs_more_data = false;
@@ -167,21 +168,71 @@ impl Connection {
             let id = bytes[0] as i32;
             index += 1;
 
-            // get a vec of just the packet's bytes
-            // TODO: length of packet?
-            let packet_bytes = (&bytes[index..]).to_vec();
+            if index & 0x80 == 0x80 {
+                // is datagram
 
-            // read the packet from the protocol
-            let packet = match self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
-                Some(packet) => packet,
-                None => return NeedMoreData
-            };
+                // header parts
+                let is_ack = index & 0x40 == 0x40;
+                let has_ba_and_as = is_ack && (index & 0x10 == 0x10);
+                let is_nack = !is_ack && (index & 0x20 == 0x20);
+                let is_packet_pair = !is_ack && !is_nack && (index & 0x10 == 0x10);
+                let is_continuous_send = !is_ack && !is_nack && (index & 0x8 == 0x8);
+                let needs_ba_and_as = !is_ack && !is_nack && (index & 0x4 == 0x4);
 
-            // TODO: Not this hack. Maybe return the length of the packet from protocol#read ?
-            let remainder = &bytes[index..(packet.write().len())];
-            self.unprocessed_buffer = remainder.to_vec();
+                if bytes.len() < index + 3 { return NeedMoreData; }
+                let sequence_number = [bytes[index], bytes[index + 1], bytes[index + 2]];
+                index += 3;
 
-            CompletePacket(packet)
+                let flags = bytes[index];
+                index += 1;
+                let reliability = flags & 0xD0;
+                let split = flags & 0x10 == 0x10;
+
+                let length = match <u16 as ReadField>::read(bytes, index) {
+                    Some((l, v)) => {
+                        index += v;
+                        l
+                    }
+                    None => return NeedMoreData
+                };
+
+                let reliability_message = match reliability {
+                    2 | 3 | 4 => {
+                        let s = [bytes[index], bytes[index + 1], bytes[index + 2]];
+                        index += 3;
+                        s
+                    }
+                    _ => [0, 0, 0]
+                };
+
+                let sequencing_index = match reliability {
+                    1 | 4 => {
+                        let s = [bytes[index], bytes[index + 1], bytes[index + 2]];
+                        index += 3;
+                        s
+                    }
+                    _ => [0, 0, 0]
+                };
+
+                // todo: finish this
+
+                NeedMoreData
+            } else {
+                // get a vec of just the packet's bytes
+                let packet_bytes = (&bytes[index..]).to_vec();
+
+                // read the packet from the protocol
+                let packet = match self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
+                    Some(packet) => packet,
+                    None => return NeedMoreData
+                };
+
+                // TODO: Not this hack. Maybe return the length of the packet from protocol#read ?
+                let remainder = &bytes[index..(packet.write().len())];
+                self.unprocessed_buffer = remainder.to_vec();
+
+                CompletePacket(packet)
+            }
         } else {
             NeedMoreData
         }

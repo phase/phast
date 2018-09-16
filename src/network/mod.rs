@@ -107,7 +107,7 @@ impl NetworkManager {
 //                    println!("[Packet-Parse]: Received Bytes from {}: {:X?}", address, bytes);
                     if let Some(mut connection) = connection_manager.connections.find_mut(&address) {
                         let packets = (*connection.get()).handle_read(&mut bytes);
-                        println!("[Packet-Parse]: Received Packets from {}: {}", address, packets.len());
+//                        println!("[Packet-Parse]: Received Packets from {}: {}", address, packets.len());
                         for packet in packets {
                             packet_channel.send((address, packet));
                         }
@@ -159,7 +159,7 @@ impl NetworkManager {
                             let length = stream.read(&mut buf).unwrap_or(0);
 
                             if length > 0 {
-                                println!("[TCP-Read]: Read {} bytes from {}", length, address);
+//                                println!("[TCP-Read]: Read {} bytes from {}", length, address);
                                 byte_sender.send((*address, (&buf[..length]).to_vec()));
                             }
                         }
@@ -189,7 +189,7 @@ impl NetworkManager {
             if length > 0 {
                 let buf = (&mut buf[..length]).to_vec();
 
-                println!("[UDP]: Read {} bytes from {}", buf.len(), address);
+//                println!("[UDP]: Read {} bytes from {}", buf.len(), address);
                 if let None = connection_manager.connections.find_mut(&address) {
                     // this is a new connection
                     println!("[UDP]: Accepted new connection from {}", address);

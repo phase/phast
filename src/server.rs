@@ -25,6 +25,12 @@ pub struct Server {
     pub packet_receiver: Receiver<(SocketAddr, Box<Packet>)>,
 }
 
+macro_rules! if_packet {
+    ($packet:ident = $t:ty $b:block) => {
+        if let Some($packet) = $packet.downcast_ref::<$t>() $b
+    };
+}
+
 impl Server {
     pub fn new() -> Self {
         let connection_manager = Arc::new(ConnectionManager::new());
@@ -90,11 +96,13 @@ impl Server {
     }
 
     fn handle_packet(&mut self, address: SocketAddr, packet: Box<Packet>) {
-        let any: Box<Any> = packet.as_any();
-        if let Some(handshake) = any.downcast_ref::<v1_12::HandshakePacket>() {
-            let h: &v1_12::HandshakePacket = handshake;
-            let protocol_version = h.protocol_version.0;
-            match h.next_state.0 {
+        let packet: Box<Any> = packet.as_any();
+
+        // Ping
+
+        if_packet!(packet = v1_12::HandshakePacket {
+            let protocol_version = packet.protocol_version.0;
+            match packet.next_state.0 {
                 1 => {
                     // Server List Ping
                     let response_string = format!("{{\
@@ -134,31 +142,53 @@ impl Server {
                 }
                 _ => {}
             }
-        }
-        if let Some(ping) = any.downcast_ref::<v1_12::PingPacket>() {
-            let response: Box<v1_12::PongPacket> = Box::new(v1_12::PongPacket::new(ping.payload));
-            if let Some(mut connection) = self.connection_manager.connections.find_mut(&address) {
-                let mut connection = connection.get();
-                connection.send_packet(response);
-            }
-        }
+        });
 
-        if let Some(unconnected_ping) = any.downcast_ref::<raknet::UnconnectedPingPacket>() {
+        if_packet!(packet = v1_12::PingPacket {
+            let response: Box<v1_12::PongPacket> = Box::new(v1_12::PongPacket::new(packet.payload));
+            self.send_packet(address, response);
+        });
+
+        if_packet!(packet = raknet::UnconnectedPingPacket {
             let response_string = "MCPE;rserver test;282;1.6.0;1;2;9999;test2;Survival;";
             let response = Box::new(raknet::UnconnectedPongPacket::new(
                 0,
                 1234,
                 RAKNET_MAGIC,
-                ShortLengthPrefixedString(response_string.to_string())
+                ShortLengthPrefixedString(response_string.to_string()),
             ));
-            if let Some(mut connection) = self.connection_manager.connections.find_mut(&address) {
-                let mut connection = connection.get();
-                connection.send_packet(response);
-            }
-        }
+            self.send_packet(address, response);
+        });
+
+
+        // Login
+
+        if_packet!(packet = raknet::OpenConnectionRequest1Packet {
+            let response = Box::new(raknet::OpenConnectionReply1Packet::new(
+                RAKNET_MAGIC,
+                1234u64,
+                0u8,
+                800u16,
+            ));
+            self.send_packet(address, response);
+        });
+
+        if_packet!(packet = raknet::OpenConnectionRequest2Packet {
+            println!("{:#?}", packet);
+
+            let response = Box::new(raknet::OpenConnectionReply2Packet::new(
+                RAKNET_MAGIC,
+                1234,
+                Address(address),
+                packet.mtu_size,
+                0
+            ));
+            self.send_packet(address, response);
+        });
     }
 
     fn send_packet(&self, address: SocketAddr, packet: Box<Packet>) {
+        println!("[Server]: Sending {} to {}", packet.name(), address);
         if let Some(mut connection) = self.connection_manager.connections.find_mut(&address) {
             connection.get().send_packet(packet);
         }

@@ -8,11 +8,11 @@ protocol!(ProtocolBedrockRakNet, ProtocolType::BedrockEdition, 9,
     0x01, State::BedrockRakNet, Bound::Serverbound, UnconnectedPingPacket,
     0x02, State::BedrockRakNet, Bound::Serverbound, UnconnectedPingOpenConnectionsPacket,
     0x03, State::BedrockRakNet, Bound::Clientbound, ConnectedPongPacket,
-    0x05, State::BedrockRakNet, Bound::None, OpenConnectionRequest1Packet,
-    0x06, State::BedrockRakNet, Bound::None, OpenConnectionReply1Packet,
-    0x07, State::BedrockRakNet, Bound::None, OpenConnectionRequest2Packet,
-    0x08, State::BedrockRakNet, Bound::None, OpenConnectionReply2Packet,
-    0x09, State::BedrockRakNet, Bound::None, ConnectionRequestPacket,
+    0x05, State::BedrockRakNet, Bound::Serverbound, OpenConnectionRequest1Packet,
+    0x06, State::BedrockRakNet, Bound::Clientbound, OpenConnectionReply1Packet,
+    0x07, State::BedrockRakNet, Bound::Serverbound, OpenConnectionRequest2Packet,
+    0x08, State::BedrockRakNet, Bound::Clientbound, OpenConnectionReply2Packet,
+    0x09, State::BedrockRakNet, Bound::Serverbound, ConnectionRequestPacket,
     0x10, State::BedrockRakNet, Bound::None, ConnectionRequestAcceptedPacket,
     0x13, State::BedrockRakNet, Bound::None, NewIncomingConnectionPacket,
     0x14, State::BedrockRakNet, Bound::None, NoFreeIncomingConnectionsPacket,
@@ -61,7 +61,7 @@ packet!(OpenConnectionReply1Packet,
 
 packet!(OpenConnectionRequest2Packet,
     magic: RakNetMagic,
-    // TODO: server_address: SockerAddr,
+    server_address: Address,
     mtu_size: u16,
     client_id: u64
 );
@@ -69,7 +69,7 @@ packet!(OpenConnectionRequest2Packet,
 packet!(OpenConnectionReply2Packet,
     magic: RakNetMagic,
     server_id: u64,
-    // TODO: client_address: SocketAddr,
+    client_address: Address,
     mtu_size: u16,
     security: u8
 );
@@ -81,7 +81,7 @@ packet!(ConnectionRequestPacket,
 );
 
 packet!(ConnectionRequestAcceptedPacket,
-    // TODO: system_address: SocketAddr,
+    system_address: Address,
     system_index: u16,
     // TODO: system_addresses: Vec<SocketAddr>,?
     incoming_timestamp: u64,
@@ -89,7 +89,7 @@ packet!(ConnectionRequestAcceptedPacket,
 );
 
 packet!(NewIncomingConnectionPacket,
-    // TODO: client_address: system_address,
+    client_address: Address,
     // TODO: system_addresses: Vec<SocketAddr>,?
     client_timestamp: u64,
     server_timestamp: u64
