@@ -104,11 +104,10 @@ impl NetworkManager {
         loop {
             match bytes.recv() {
                 Ok((address, mut bytes)) => {
-//                    println!("[Packet-Parse]: Received Bytes from {}: {:X?}", address, bytes);
                     if let Some(mut connection) = connection_manager.connections.find_mut(&address) {
                         let packets = (*connection.get()).handle_read(&mut bytes);
-//                        println!("[Packet-Parse]: Received Packets from {}: {}", address, packets.len());
                         for packet in packets {
+                            println!("[Packet-Parse]: Received {} from {}", packet.name(), address);
                             packet_channel.send((address, packet));
                         }
                     }

@@ -11,6 +11,9 @@ pub struct VarInt(pub i32);
 #[derive(Clone, Default, Debug)]
 pub struct VarIntLengthPrefixedString(pub String);
 
+#[derive(Clone, Default, Debug)]
+pub struct VarIntLengthPrefixedByteArray(pub Vec<u8>);
+
 /// Used by the Bedrock protocol
 #[derive(Clone, Default, Debug)]
 pub struct ShortLengthPrefixedString(pub String);
@@ -109,6 +112,37 @@ impl WriteField for VarInt {
         }
 
         vec
+    }
+}
+
+// VarIntLengthPrefixedByteArray
+
+impl ReadField for VarIntLengthPrefixedByteArray {
+    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(VarIntLengthPrefixedByteArray, usize)> {
+        let mut varint_size = 0;
+        let length = match <VarInt as ReadField>::read(buf, index) {
+            Some((l, v)) => {
+                varint_size = v;
+                index += v;
+                l.0 as usize
+            }
+            None => return None
+        };
+
+        if buf.len() < index + length {
+            return None;
+        }
+
+        let bytes = buf[index..length].to_vec();
+        Some((VarIntLengthPrefixedByteArray(bytes), length + varint_size))
+    }
+}
+
+impl WriteField for VarIntLengthPrefixedByteArray {
+    fn write(&self) -> Vec<u8> {
+        let mut buf = VarInt(self.0.len() as i32).write();
+        buf.append(&mut self.0.clone());
+        buf
     }
 }
 
@@ -346,7 +380,7 @@ impl ReadField for Address {
                         ),
                         port,
                     )),
-                    7
+                      7
                 ))
             }
             6 => {
@@ -450,8 +484,7 @@ impl ReadField for Address {
                             flow,
                             scope_id,
                         )
-                    )),
-                    27
+                    )), 27
                 ))
             }
             _ => None

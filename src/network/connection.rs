@@ -73,15 +73,20 @@ impl Connection {
 
     // might need a lock so we only handle one read at a time
     pub fn handle_read(&mut self, bytes: &mut Vec<u8>) -> Vec<Box<Packet>> {
-        println!("first byte: {}", bytes[0]);
-        let mut packets = Vec::with_capacity(1);
+        let mut packets: Vec<Box<Packet>> = Vec::with_capacity(1);
         self.unprocessed_buffer.append(bytes);
         let mut needs_more_data = false;
         while self.unprocessed_buffer.len() > 0 && !needs_more_data {
             match self.start_packet_read() {
                 CompletePacket(packet) => {
-                    self.unprocessed_buffer.clear();
-                    packets.push(packet)
+                    // switch state depending on packet
+                    // this is done here because there may be more bytes for us to read that
+                    // are in a different state
+                    if let Some(state) = packet.next_state() {
+                        self.protocol_state = state;
+                    }
+
+                    packets.push(packet);
                 }
                 NeedMoreData => {
                     needs_more_data = true;
@@ -97,7 +102,7 @@ impl Connection {
         packets
     }
 
-    pub fn start_packet_read(&mut self) -> PacketResult {
+    fn start_packet_read(&mut self) -> PacketResult {
         let bytes = &self.unprocessed_buffer.clone();
         let mut index: usize = 0;
 

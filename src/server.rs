@@ -85,7 +85,6 @@ impl Server {
             match self.packet_receiver.try_recv() {
                 Ok((address, packet)) => {
                     packets_read += 1;
-                    println!("[Server]: Got {} from {}", packet.name(), address);
                     self.handle_packet(address, packet);
                 }
                 _ => {
@@ -127,18 +126,22 @@ impl Server {
 
                     let response: Box<v1_12::ResponsePacket> = Box::new(v1_12::ResponsePacket::new(VarIntLengthPrefixedString(response_string.to_string())));
 
-                    if let Some(mut connection) = self.connection_manager.connections.find_mut(&address) {
-                        let mut connection = connection.get();
-                        connection.protocol_state = State::JavaStatus;
-                        connection.send_packet(response);
-                    }
+                    self.send_packet(address, response);
                 }
                 2 => {
                     // Login
-                    if let Some(mut connection) = self.connection_manager.connections.find_mut(&address) {
-                        let mut connection = connection.get();
-                        connection.protocol_state = State::JavaLogin;
-                    }
+                    let response: Box<v1_12::LoginSuccessPacket> = Box::new(
+                        v1_12::LoginSuccessPacket::new(
+                            VarIntLengthPrefixedString(
+                                "e63a1d61-adf1-4d47-b5f8-43efc5c84908".to_string()
+                            ),
+                            VarIntLengthPrefixedString(
+                                "123456789012345".to_string()
+                            )
+                        )
+                    );
+
+                    self.send_packet(address, response);
                 }
                 _ => {}
             }

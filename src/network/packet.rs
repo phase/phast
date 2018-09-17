@@ -1,11 +1,13 @@
 use network::connection;
 use network::types::*;
+use network::protocol;
 use std::any::Any;
 
 pub trait Packet: AsAny + Send + Sync {
     fn name(&self) -> &str;
     fn read(&mut self, bytes: Vec<u8>) -> bool;
     fn write(&self) -> Vec<u8>;
+    fn next_state(&self) -> Option<protocol::State>;
 }
 
 pub trait AsAny {
@@ -33,6 +35,9 @@ pub trait WriteField where Self: Sized {
 #[macro_export]
 macro_rules! packet {
     ($packet_name:ident, $($field:ident: $t:ty),*) => {
+        packet!($packet_name, $($field: $t),*; |s:&$packet_name|{None});
+    };
+    ($packet_name:ident, $($field:ident: $t:ty),*; $next_state:expr) => {
         #[derive(Clone, Default, Debug)]
         pub struct $packet_name {
             $(
@@ -75,6 +80,10 @@ macro_rules! packet {
                     buf.append(&mut self.$field.write());
                 )*
                 buf
+            }
+
+            fn next_state(&self) -> Option<State> {
+                $next_state(self)
             }
         }
     };

@@ -26,6 +26,7 @@ any Java or Bedrock version should be possible.
     * Game Loop
     * Blocks / Items / Tiles / Entities for specific versions
     * World & Chunk Structure
+        * One thread per world?
     * Packet sending queue
         * Put this on its own thread?
     * Wow there's a lot in here
