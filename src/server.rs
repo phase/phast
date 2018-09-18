@@ -129,19 +129,7 @@ impl Server {
                     self.send_packet(address, response);
                 }
                 2 => {
-                    // Login
-                    let response: Box<v1_12::LoginSuccessPacket> = Box::new(
-                        v1_12::LoginSuccessPacket::new(
-                            VarIntLengthPrefixedString(
-                                "e63a1d61-adf1-4d47-b5f8-43efc5c84908".to_string()
-                            ),
-                            VarIntLengthPrefixedString(
-                                "123456789012345".to_string()
-                            )
-                        )
-                    );
-
-                    self.send_packet(address, response);
+                    // Login state handled earlier
                 }
                 _ => {}
             }
@@ -166,6 +154,17 @@ impl Server {
 
         // Login
 
+        if_packet!(packet = v1_12::LoginStartPacket {
+            println!("[Server] LoginStartPacket: {}", packet.name.0);
+//
+//            let response = Box::new(v1_12::EncryptionRequestPacket::new(
+//                VarIntLengthPrefixedString("".to_string()),
+//                VarIntLengthPrefixedByteArray(vec![0x0Au8, 0x0Bu8, 0x0Cu8, 0x0Du8, 0x0Eu8, 0x0Fu8]),
+//                VarIntLengthPrefixedByteArray(vec![0x0Au8, 0x0Bu8, 0x0Cu8, 0x0Du8]),
+//            ));
+//            self.send_packet(address, response);
+        });
+
         if_packet!(packet = raknet::OpenConnectionRequest1Packet {
             let response = Box::new(raknet::OpenConnectionReply1Packet::new(
                 RAKNET_MAGIC,
@@ -187,6 +186,10 @@ impl Server {
                 0
             ));
             self.send_packet(address, response);
+        });
+
+        if_packet!(packet = raknet::ConnectionRequestPacket{
+            println!("{:#?}", packet);
         });
     }
 

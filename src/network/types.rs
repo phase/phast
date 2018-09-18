@@ -18,6 +18,10 @@ pub struct VarIntLengthPrefixedByteArray(pub Vec<u8>);
 #[derive(Clone, Default, Debug)]
 pub struct ShortLengthPrefixedString(pub String);
 
+// it's just 46 zeros. no more, no less
+#[derive(Clone, Default, Debug)]
+pub struct FortySixZeros(pub Vec<u8>);
+
 // Wrapper around SocketAddr (little hacky)
 #[derive(Clone, Debug)]
 pub struct Address(pub SocketAddr);
@@ -299,7 +303,7 @@ impl WriteField for u32 {
 
 impl ReadField for u64 {
     fn read(buf: &Vec<u8>, mut index: usize) -> Option<(u64, usize)> {
-        if buf.len() < index + 2 {
+        if buf.len() < index + 8 {
             return None;
         }
 
@@ -340,6 +344,26 @@ impl ReadField for RakNetMagic {
 impl WriteField for RakNetMagic {
     fn write(&self) -> Vec<u8> {
         bedrock::MAGIC.to_vec()
+    }
+}
+
+// it's just 46 zeros
+
+impl ReadField for FortySixZeros {
+    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(FortySixZeros, usize)> {
+        println!("READING 46 0s");
+        if buf.len() < index + 45 {
+            println!(" NOT ENOUGH ZEROS?!??!?!?");
+            return None;
+        }
+
+        Some((FortySixZeros(vec![0; 46]), 46))
+    }
+}
+
+impl WriteField for FortySixZeros {
+    fn write(&self) -> Vec<u8> {
+        vec![0; 46]
     }
 }
 

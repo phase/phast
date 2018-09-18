@@ -169,20 +169,20 @@ impl Connection {
             CompletePacket(packet)
         } else if self.is_udp() {
             // bedrock edition
-            let remainder = &bytes[index..];
-            let id = bytes[0] as i32;
+            let id = bytes[index] as i32;
             index += 1;
 
-            if index & 0x80 == 0x80 {
+            if id & 0x80 == 0x80 {
+                println!("packet is datagram {:#b}\n  SPECIAL: {:X?}", id, bytes);
                 // is datagram
 
                 // header parts
-                let is_ack = index & 0x40 == 0x40;
-                let has_ba_and_as = is_ack && (index & 0x10 == 0x10);
-                let is_nack = !is_ack && (index & 0x20 == 0x20);
-                let is_packet_pair = !is_ack && !is_nack && (index & 0x10 == 0x10);
-                let is_continuous_send = !is_ack && !is_nack && (index & 0x8 == 0x8);
-                let needs_ba_and_as = !is_ack && !is_nack && (index & 0x4 == 0x4);
+                let is_ack = id & 0x40 == 0x40;
+                let has_ba_and_as = is_ack && (id & 0x10 == 0x10);
+                let is_nack = !is_ack && (id & 0x20 == 0x20);
+                let is_packet_pair = !is_ack && !is_nack && (id & 0x10 == 0x10);
+                let is_continuous_send = !is_ack && !is_nack && (id & 0x8 == 0x8);
+                let needs_ba_and_as = !is_ack && !is_nack && (id & 0x4 == 0x4);
 
                 if bytes.len() < index + 3 { return NeedMoreData; }
                 let sequence_number = [bytes[index], bytes[index + 1], bytes[index + 2]];
@@ -190,13 +190,14 @@ impl Connection {
 
                 let flags = bytes[index];
                 index += 1;
-                let reliability = flags & 0xD0;
+                let reliability = (flags & 0xE0) >> 5;
                 let split = flags & 0x10 == 0x10;
 
                 let length = match <u16 as ReadField>::read(bytes, index) {
                     Some((l, v)) => {
                         index += v;
-                        l
+                        // this short is actually the data *bit* length
+                        (l / 8) as usize
                     }
                     None => return NeedMoreData
                 };
@@ -219,9 +220,59 @@ impl Connection {
                     _ => [0, 0, 0]
                 };
 
-                // todo: finish this
+                let (order_index, order_channel) = match reliability {
+                    1 | 3 | 4 | 7 => {
+                        let s = [bytes[index], bytes[index + 1], bytes[index + 2]];
+                        index += 3;
+                        let c = bytes[index];
+                        index += 1;
+                        (s, c)
+                    }
+                    _ => ([0, 0, 0], 0)
+                };
 
-                NeedMoreData
+                let (packet_count, packet_id, packet_index) = if split {
+                    println!("This packet was split!");
+                    let packet_count = match <u32 as ReadField>::read(bytes, index) {
+                        Some((l, v)) => {
+                            index += v;
+                            l
+                        }
+                        None => return NeedMoreData
+                    };
+                    let packet_id = match <u16 as ReadField>::read(bytes, index) {
+                        Some((l, v)) => {
+                            index += v;
+                            l
+                        }
+                        None => return NeedMoreData
+                    };
+                    let packet_index = match <u32 as ReadField>::read(bytes, index) {
+                        Some((l, v)) => {
+                            index += v;
+                            l
+                        }
+                        None => return NeedMoreData
+                    };
+                    (packet_count, packet_id, packet_index)
+                } else {
+                    (0, 0, 0)
+                };
+
+                let id = bytes[index] as i32;
+                index += 1;
+                let packet_bytes = (&bytes[index..(index + length - 1)]).to_vec();
+                println!("ID: {} LENGTH: {}\nBYTES:{:X?}", id, length, packet_bytes);
+
+                let packet = match self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
+                    Some(packet) => packet,
+                    None => return NeedMoreData
+                };
+
+                let remainder = &bytes[(index + length - 1)..];
+                self.unprocessed_buffer = remainder.to_vec();
+
+                CompletePacket(packet)
             } else {
                 // get a vec of just the packet's bytes
                 let packet_bytes = (&bytes[index..]).to_vec();
@@ -233,7 +284,7 @@ impl Connection {
                 };
 
                 // TODO: Not this hack. Maybe return the length of the packet from protocol#read ?
-                let remainder = &bytes[index..(packet.write().len())];
+                let remainder = &bytes[(packet.write().len() + 1)..];
                 self.unprocessed_buffer = remainder.to_vec();
 
                 CompletePacket(packet)

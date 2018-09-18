@@ -49,7 +49,7 @@ packet!(ConnectedPongPacket,
 packet!(OpenConnectionRequest1Packet,
     magic: RakNetMagic,
     protocol_version: u8,
-    mtu: u16
+    mtu_data: FortySixZeros
 );
 
 packet!(OpenConnectionReply1Packet,
