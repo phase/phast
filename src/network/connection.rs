@@ -1,6 +1,7 @@
 use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
 use std::io::{Write, Read};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicIsize, Ordering};
 use std::sync::mpsc::{channel, Sender, Receiver};
 use std::mem::transmute;
 use std::any::Any;
@@ -28,6 +29,7 @@ pub struct Connection {
     pub protocol: Box<Protocol>,
     // processing packets
     unprocessed_buffer: Vec<u8>,
+    datagram_sequence_id: AtomicIsize,
 }
 
 enum PacketResult {
@@ -46,7 +48,7 @@ impl Connection {
             address,
             protocol_state: match socket {
                 SocketWrapper::TCP(_) => State::JavaHandshake,
-                SocketWrapper::UDP(_) => State::BedrockRakNet,
+                SocketWrapper::UDP(_) => State::BedrockRakNetOffline,
             },
             protocol: match socket {
                 SocketWrapper::TCP(_) => Box::new(v1_12::ProtocolJava_1_12),
@@ -54,6 +56,7 @@ impl Connection {
             },
             socket,
             unprocessed_buffer: vec![],
+            datagram_sequence_id: AtomicIsize::new(42),
         }
     }
 
@@ -296,8 +299,21 @@ impl Connection {
 
     pub fn send_packet(&mut self, packet: Box<Packet>) {
         match self.protocol.write(packet, Bound::Clientbound) {
-            Some(bytes) => {
-                self.write(bytes.as_slice());
+            Some(mut bytes) => {
+                if self.protocol_state == State::BedrockRakNet {
+                    // online raknet packets need a special header
+                    let d = self.datagram_sequence_id.fetch_add(1, Ordering::SeqCst);
+                    let mut header = vec![
+                        0x84u8, // todo: real raknet header
+                        (0xFF & d) as u8,
+                        (0xFF & (d >> 8)) as u8,
+                        (0xFF & (d >> 16)) as u8
+                    ];
+                    header.append(&mut bytes);
+                    self.write(header.as_slice());
+                } else {
+                    self.write(bytes.as_slice());
+                }
             }
             None => {}
         }

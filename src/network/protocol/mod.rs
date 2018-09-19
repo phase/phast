@@ -23,7 +23,9 @@ pub enum State {
     /// in game
     JavaPlay,
 
-    /// raknet protocol
+    /// raknet packets that are offline
+    BedrockRakNetOffline,
+    /// raknet packets that are datagrams
     BedrockRakNet,
     /// Minecraft protocol
     BedrockMinecraft,

@@ -178,6 +178,10 @@ impl Server {
         if_packet!(packet = raknet::OpenConnectionRequest2Packet {
             println!("{:#?}", packet);
 
+            if let Some(mut connection) = self.connection_manager.connections.find_mut(&address) {
+                connection.get().protocol_state = State::BedrockRakNet;
+            }
+
             let response = Box::new(raknet::OpenConnectionReply2Packet::new(
                 RAKNET_MAGIC,
                 1234,
