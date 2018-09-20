@@ -188,7 +188,7 @@ impl NetworkManager {
             if length > 0 {
                 let buf = (&mut buf[..length]).to_vec();
 
-//                println!("[UDP]: Read {} bytes from {}\n  {:X?}", buf.len(), address, buf);
+                println!("[UDP]: Read {} bytes from {}\n  {:X?}", buf.len(), address, buf);
                 if let None = connection_manager.connections.find_mut(&address) {
                     // this is a new connection
                     println!("[UDP]: Accepted new connection from {}", address);

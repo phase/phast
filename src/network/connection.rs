@@ -175,7 +175,7 @@ impl Connection {
             let id = bytes[index] as i32;
             index += 1;
 
-            if id & 0x80 == 0x80 {
+            if id & 0x80 == 0x80 && id != 0xA0 && id != 0xC0 {
                 println!("packet is datagram {:#b}\n  SPECIAL: {:X?}", id, bytes);
                 // is datagram
 
@@ -194,6 +194,7 @@ impl Connection {
                 let flags = bytes[index];
                 index += 1;
                 let reliability = (flags & 0xE0) >> 5;
+                println!("flags {:#b} {}", reliability, reliability);
                 let split = flags & 0x10 == 0x10;
 
                 let length = match <u16 as ReadField>::read(bytes, index) {
@@ -204,6 +205,8 @@ impl Connection {
                     }
                     None => return NeedMoreData
                 };
+
+                // TODO: Abstract this out of here
 
                 let reliability_message = match reliability {
                     2 | 3 | 4 => {
@@ -264,6 +267,12 @@ impl Connection {
 
                 let id = bytes[index] as i32;
                 index += 1;
+
+                if index + length > bytes.len() {
+                    println!("need {}/{} ({:X?}/{:X?}) bytes!!", length, bytes.len(), length, bytes.len());
+                    return NeedMoreData
+                }
+
                 let packet_bytes = (&bytes[index..(index + length - 1)]).to_vec();
                 println!("ID: {} LENGTH: {}\nBYTES:{:X?}", id, length, packet_bytes);
 
@@ -281,7 +290,7 @@ impl Connection {
                 let packet_bytes = (&bytes[index..]).to_vec();
 
                 // read the packet from the protocol
-                let packet = match self.protocol.read(id, self.protocol_state, Bound::Serverbound, packet_bytes) {
+                let packet = match self.protocol.read(id, State::BedrockRakNetOffline, Bound::Serverbound, packet_bytes) {
                     Some(packet) => packet,
                     None => return NeedMoreData
                 };
@@ -302,12 +311,18 @@ impl Connection {
             Some(mut bytes) => {
                 if self.protocol_state == State::BedrockRakNet {
                     // online raknet packets need a special header
+                    let len = (bytes.len() * 8) as u16;
+
                     let d = self.datagram_sequence_id.fetch_add(1, Ordering::SeqCst);
                     let mut header = vec![
                         0x84u8, // todo: real raknet header
                         (0xFF & d) as u8,
                         (0xFF & (d >> 8)) as u8,
-                        (0xFF & (d >> 16)) as u8
+                        (0xFF & (d >> 16)) as u8,
+                        0x40,
+                        ((len >> 8) & 0xFF) as u8,
+                        (len & 0xFF) as u8,
+                        0, 0, 0
                     ];
                     header.append(&mut bytes);
                     self.write(header.as_slice());

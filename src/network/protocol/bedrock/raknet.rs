@@ -12,7 +12,7 @@ protocol!(ProtocolBedrockRakNet, ProtocolType::BedrockEdition, 9,
     0x06, State::BedrockRakNetOffline, Bound::Clientbound, OpenConnectionReply1Packet,
     0x07, State::BedrockRakNetOffline, Bound::Serverbound, OpenConnectionRequest2Packet,
     0x08, State::BedrockRakNetOffline, Bound::Clientbound, OpenConnectionReply2Packet,
-    0x09, State::BedrockRakNetOffline, Bound::Serverbound, ConnectionRequestPacket,
+    0x09, State::BedrockRakNet, Bound::Serverbound, ConnectionRequestPacket,
     0x10, State::BedrockRakNet, Bound::Clientbound, ConnectionRequestAcceptedPacket,
     0x13, State::BedrockRakNet, Bound::Serverbound, NewIncomingConnectionPacket,
     0x14, State::BedrockRakNet, Bound::None, NoFreeIncomingConnectionsPacket,
@@ -21,8 +21,8 @@ protocol!(ProtocolBedrockRakNet, ProtocolType::BedrockEdition, 9,
     0x19, State::BedrockRakNet, Bound::None, IncompatibleProtocolPacket,
     0x1a, State::BedrockRakNet, Bound::None, IpRecentlyConnectedPacket,
     0x1c, State::BedrockRakNetOffline, Bound::Clientbound, UnconnectedPongPacket,
-    0xa0, State::BedrockRakNet, Bound::None, NakPacket,
-    0xc0, State::BedrockRakNet, Bound::None, AckPacket
+    0xa0, State::BedrockRakNetOffline, Bound::Any, NakPacket,
+    0xc0, State::BedrockRakNetOffline, Bound::Any, AckPacket
 );
 
 packet!(ConnectedPingPacket,
@@ -83,14 +83,14 @@ packet!(ConnectionRequestPacket,
 packet!(ConnectionRequestAcceptedPacket,
     system_address: Address,
     system_index: u16,
-    // TODO: system_addresses: Vec<SocketAddr>,?
+    system_addresses: Vec<Address>,
     incoming_timestamp: u64,
     system_timestamp: u64
 );
 
 packet!(NewIncomingConnectionPacket,
     client_address: Address,
-    // TODO: system_addresses: Vec<SocketAddr>,?
+    system_addresses: Vec<Address>,
     client_timestamp: u64,
     server_timestamp: u64
 );
@@ -128,9 +128,9 @@ packet!(UnconnectedPongPacket,
 );
 
 packet!(NakPacket,
-    // TODO: short prefix "int range"
+    ids: IntRangeList
 );
 
 packet!(AckPacket,
-    // TODO: short prefix "int range"
+    ids: IntRangeList
 );

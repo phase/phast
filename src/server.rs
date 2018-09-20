@@ -1,4 +1,4 @@
-use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
+use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr, IpAddr, Ipv4Addr};
 use std::io::{Write, Read};
 use std::thread;
 use std::time::*;
@@ -178,10 +178,6 @@ impl Server {
         if_packet!(packet = raknet::OpenConnectionRequest2Packet {
             println!("{:#?}", packet);
 
-            if let Some(mut connection) = self.connection_manager.connections.find_mut(&address) {
-                connection.get().protocol_state = State::BedrockRakNet;
-            }
-
             let response = Box::new(raknet::OpenConnectionReply2Packet::new(
                 RAKNET_MAGIC,
                 1234,
@@ -190,10 +186,37 @@ impl Server {
                 0
             ));
             self.send_packet(address, response);
+
+            if let Some(mut connection) = self.connection_manager.connections.find_mut(&address) {
+                connection.get().protocol_state = State::BedrockRakNet;
+            }
         });
 
-        if_packet!(packet = raknet::ConnectionRequestPacket{
+        if_packet!(packet = raknet::ConnectionRequestPacket {
             println!("{:#?}", packet);
+            let loopback = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 19132);
+            let garbage = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 19132);
+
+            let addresses = vec![
+                Address(loopback), Address(garbage), Address(garbage), Address(garbage), Address(garbage),
+                Address(garbage), Address(garbage), Address(garbage), Address(garbage), Address(garbage),
+                Address(garbage), Address(garbage), Address(garbage), Address(garbage), Address(garbage),
+                Address(garbage), Address(garbage), Address(garbage), Address(garbage), Address(garbage),
+            ];
+
+            let start = SystemTime::now();
+            let since_the_epoch = start.duration_since(UNIX_EPOCH).expect("Time went backwards");
+            let timestamp = since_the_epoch.as_secs() * 1000 + since_the_epoch.subsec_nanos() as u64 / 1_000_000;
+
+            let response = Box::new(raknet::ConnectionRequestAcceptedPacket::new(
+                Address(loopback),
+                0,
+                addresses,
+                packet.timestamp,
+                timestamp
+            ));
+
+            self.send_packet(address, response)
         });
     }
 

@@ -22,6 +22,10 @@ pub struct ShortLengthPrefixedString(pub String);
 #[derive(Clone, Default, Debug)]
 pub struct FortySixZeros(pub Vec<u8>);
 
+// Used for ACK & NACK in RakNet
+#[derive(Clone, Default, Debug)]
+pub struct IntRangeList(pub Vec<([u8; 3], [u8; 3])>);
+
 // Wrapper around SocketAddr (little hacky)
 #[derive(Clone, Debug)]
 pub struct Address(pub SocketAddr);
@@ -383,10 +387,11 @@ impl ReadField for Address {
                     return None;
                 }
 
-                let a = buf[index];
-                let b = buf[index + 1];
-                let c = buf[index + 2];
-                let d = buf[index + 3];
+                // TODO: Why are these inverted?
+                let a = 255u8 - buf[index];
+                let b = 255u8 - buf[index + 1];
+                let c = 255u8 - buf[index + 2];
+                let d = 255u8 - buf[index + 3];
                 index += 4;
 
                 let port = match <u16 as ReadField>::read(buf, index) {
@@ -403,8 +408,7 @@ impl ReadField for Address {
                             Ipv4Addr::new(a, b, c, d)
                         ),
                         port,
-                    )),
-                      7
+                    )), 7
                 ))
             }
             6 => {
@@ -544,3 +548,80 @@ impl Default for Address {
         Address(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 80))
     }
 }
+
+impl ReadField for Vec<Address> {
+    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(Self, usize)> {
+        let mut addresses = Vec::with_capacity(20);
+        let mut size = 0;
+        for i in 0..20 {
+            let address = match <Address as ReadField>::read(buf, index) {
+                Some((l, v)) => {
+                    index += v;
+                    size += v;
+                    l
+                }
+                None => return None
+            };
+            addresses.push(address);
+        }
+        Some((addresses, size))
+    }
+}
+
+impl WriteField for Vec<Address> {
+    fn write(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(20);
+        for a in self.iter() {
+            buf.append(&mut a.write());
+        }
+        buf
+    }
+}
+
+impl ReadField for IntRangeList {
+    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(Self, usize)> {
+        let start_index = index;
+        let len = match <u16 as ReadField>::read(buf, index) {
+            Some((l, v)) => {
+                index += v;
+                l
+            }
+            None => return None
+        };
+
+        let mut ranges = Vec::with_capacity(len as usize);
+        for i in 0..len {
+            let singleton = buf[index] == 1;
+            index += 1;
+            let start = [buf[index], buf[index + 1], buf[index + 2]];
+            index += 3;
+            if singleton {
+                ranges.push((start, start));
+            } else {
+                let end = [buf[index], buf[index + 1], buf[index + 2]];
+                index += 3;
+                ranges.push((start, end));
+            }
+        }
+
+        Some((IntRangeList(ranges), index - start_index))
+    }
+}
+
+impl WriteField for IntRangeList {
+    fn write(&self) -> Vec<u8> {
+        let mut buf = (self.0.len() as u16).write();
+        for (mut start, mut end) in self.0.iter() {
+            if start == end {
+                buf.push(1u8);
+                buf.append(&mut start.to_vec());
+            } else {
+                buf.push(0u8);
+                buf.append(&mut start.to_vec());
+                buf.append(&mut end.to_vec());
+            }
+        }
+        buf
+    }
+}
+

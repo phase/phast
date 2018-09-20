@@ -38,6 +38,8 @@ pub enum Bound {
     /// Going to the Server
     Serverbound,
     /// Direction doesn't matter
+    Any,
+    /// Unknown
     None,
 }
 
@@ -50,7 +52,7 @@ pub trait Protocol: Send + Sync {
 
 #[macro_export]
 macro_rules! protocol {
-    ($protocol_name:ident, $protocol_type:expr, $protocol_version:expr, $($id:expr, $state:pat, $bound:pat, $packet:ident),*) => {
+    ($protocol_name:ident, $protocol_type:expr, $protocol_version:expr, $($id:expr, $state:expr, $bound:expr, $packet:ident),*) => {
         pub struct $protocol_name;
 
         impl Protocol for $protocol_name {
@@ -63,12 +65,14 @@ macro_rules! protocol {
             }
 
             fn read(&self, id: i32, state: State, bound: Bound, bytes: Vec<u8>) -> Option<Box<Packet>> {
-                let mut packet: Option<Box<Packet>> = match (id, state, bound) {
+                let packet: Option<Box<dyn Packet>> = || -> Option<Box<dyn Packet>> {
                     $(
-                        ($id, $state, $bound) => Some(Box::new($packet::default())),
+                        if id == $id && state == $state && (bound == $bound || $bound == Bound::Any) {
+                            return Some(Box::new($packet::default()));
+                        }
                     )*
-                    _ => None
-                };
+                    return None;
+                }();
                 match packet {
                     Some(mut packet) => match packet.read(bytes) {
                         true => Some(packet),
@@ -81,7 +85,7 @@ macro_rules! protocol {
             fn write(&self, packet: Box<Packet>, bound: Bound) -> Option<Vec<u8>> {
                 let any: Box<Any> = packet.as_any();
                 $(
-                    if let $bound = bound {
+                    if $bound == bound || $bound == Bound::Any{
                         if let Some(packet) = any.downcast_ref::<$packet>() {
                             let id = $id;
                             if $protocol_type == ProtocolType::JavaEdition {
