@@ -1,5 +1,4 @@
 use packet::*;
-use types::*;
 use protocol::*;
 
 // RakNet protocol

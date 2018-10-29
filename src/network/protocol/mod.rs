@@ -2,7 +2,6 @@ use network::packet::*;
 use network::types::*;
 
 use std::any::Any;
-use std::mem;
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum ProtocolType {
@@ -53,8 +52,10 @@ pub trait Protocol: Send + Sync {
 #[macro_export]
 macro_rules! protocol {
     ($protocol_name:ident, $protocol_type:expr, $protocol_version:expr, $($id:expr, $state:expr, $bound:expr, $packet:ident),*) => {
+        #[allow(non_camel_case_types)]
         pub struct $protocol_name;
 
+        #[allow(dead_code)]
         impl Protocol for $protocol_name {
             fn protocol_type(&self) -> ProtocolType {
                 $protocol_type

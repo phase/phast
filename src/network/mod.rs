@@ -5,15 +5,13 @@ pub mod connection;
 pub mod protocol;
 pub mod types;
 
-use std::mem;
 use std::time::*;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::thread::JoinHandle;
-use std::collections::HashMap;
-use std::io::{Write, Read};
+use std::io::Read;
 use std::sync::mpsc::{channel, Sender, Receiver};
-use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
+use std::net::{TcpListener, UdpSocket, SocketAddr};
 
 use concurrent_hashmap::*;
 use network::packet::*;
@@ -108,7 +106,7 @@ impl NetworkManager {
                         let packets = (*connection.get()).handle_read(&mut bytes);
                         for packet in packets {
                             println!("[Packet-Parse]: Received {} from {}", packet.name(), address);
-                            packet_channel.send((address, packet));
+                            packet_channel.send((address, packet)).unwrap();
                         }
                     }
                 }
@@ -123,7 +121,7 @@ impl NetworkManager {
     fn start_tcp_listener(connection_manager: Arc<ConnectionManager>) {
         let listener = TcpListener::bind("0.0.0.0:25565").unwrap();
         // this thread can be blocking since it isn't locking anything
-        listener.set_nonblocking(false);
+        listener.set_nonblocking(false).unwrap();
         println!("[TCP-Listener] Binding server to on 0.0.0.0:25565");
 
         for stream in listener.incoming() {
@@ -131,7 +129,7 @@ impl NetworkManager {
                 Ok(mut socket) => {
                     // these connections need to be non-blocking so we don't hog
                     // the lock to the connection in the thread below
-                    socket.set_nonblocking(true);
+                    socket.set_nonblocking(true).unwrap();
                     let address = socket.peer_addr().unwrap();
                     let mut connection = Connection::new(address, SocketWrapper::TCP(socket));
                     connection_manager.connections.insert(address, connection);
@@ -140,7 +138,7 @@ impl NetworkManager {
                     println!("[TCP-Listener]: Accepted new connection from {}", address);
                 }
                 Err(e) => {
-//                    println!("[TCP-Listener]: Failed to accept connection: {}", e)
+                    println!("[TCP-Listener]: Failed to accept connection: {}", e);
                 }
             }
         }
@@ -159,7 +157,7 @@ impl NetworkManager {
 
                             if length > 0 {
 //                                println!("[TCP-Read]: Read {} bytes from {}", length, address);
-                                byte_sender.send((*address, (&buf[..length]).to_vec()));
+                                byte_sender.send((*address, (&buf[..length]).to_vec())).unwrap();
                             }
                         }
                         _ => {}
@@ -195,7 +193,7 @@ impl NetworkManager {
                     let mut connection = Connection::new(address, SocketWrapper::UDP(socket.clone()));
                     connection_manager.connections.insert(address, connection);
                 }
-                byte_sender.send((address, buf));
+                byte_sender.send((address, buf)).unwrap();
             }
         }
     }

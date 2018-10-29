@@ -1,5 +1,3 @@
-use network::connection;
-use network::types::*;
 use network::protocol;
 use std::any::Any;
 
@@ -35,7 +33,7 @@ pub trait WriteField where Self: Sized {
 #[macro_export]
 macro_rules! packet {
     ($packet_name:ident, $($field:ident: $t:ty),*) => {
-        packet!($packet_name, $($field: $t),*; |s:&$packet_name|{None});
+        packet!($packet_name, $($field: $t),*; |_s:&$packet_name|{None});
     };
     ($packet_name:ident, $($field:ident: $t:ty),*; $next_state:expr) => {
         #[derive(Clone, Default, Debug)]
@@ -45,6 +43,7 @@ macro_rules! packet {
             )*
         }
 
+        #[allow(dead_code)]
         impl $packet_name {
             pub fn new($($field: $t,)*) -> Self {
                 Self {
@@ -55,12 +54,16 @@ macro_rules! packet {
             }
         }
 
+        #[allow(dead_code)]
         impl Packet for $packet_name {
             fn name(&self) -> &str {
                 stringify!($packet_name)
             }
 
+            #[allow(unused_assignments)]
+            #[allow(unused_variables)]
             fn read(&mut self, bytes: Vec<u8>) -> bool {
+                #[allow(unused_mut)]
                 let mut index = 0usize;
                 $(
                     match <$t as ReadField>::read(&bytes, index) {
@@ -75,6 +78,7 @@ macro_rules! packet {
             }
 
             fn write(&self) -> Vec<u8> {
+                #[allow(unused_mut)]
                 let mut buf = Vec::<u8>::new();
                 $(
                     buf.append(&mut self.$field.write());

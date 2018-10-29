@@ -1,13 +1,8 @@
-use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr};
-use std::io::{Write, Read};
+use std::net::{TcpStream, UdpSocket, SocketAddr};
+use std::io::{Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, Ordering};
-use std::sync::mpsc::{channel, Sender, Receiver};
-use std::mem::transmute;
-use std::any::Any;
-use std::{thread, time};
 
-use network;
 use network::types::*;
 use network::packet::*;
 use network::protocol::*;
@@ -145,7 +140,7 @@ impl Connection {
                 return NeedMoreData;
             }
 
-            let mut id_length = 0;
+            let id_length;
             let id = match <VarInt as ReadField>::read(bytes, index) {
                 Some((l, v)) => {
                     index += v;
@@ -338,10 +333,10 @@ impl Connection {
     pub fn write(&mut self, bytes: &[u8]) {
         match self.socket {
             SocketWrapper::TCP(ref mut stream) => {
-                stream.write(bytes);
+                stream.write(bytes).unwrap();
             }
             SocketWrapper::UDP(ref mut socket) => {
-                socket.send_to(bytes, self.address);
+                socket.send_to(bytes, self.address).unwrap();
             }
         }
     }

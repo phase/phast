@@ -127,7 +127,7 @@ impl WriteField for VarInt {
 
 impl ReadField for VarIntLengthPrefixedByteArray {
     fn read(buf: &Vec<u8>, mut index: usize) -> Option<(VarIntLengthPrefixedByteArray, usize)> {
-        let mut varint_size = 0;
+        let varint_size;
         let length = match <VarInt as ReadField>::read(buf, index) {
             Some((l, v)) => {
                 varint_size = v;
@@ -158,7 +158,7 @@ impl WriteField for VarIntLengthPrefixedByteArray {
 
 impl ReadField for VarIntLengthPrefixedString {
     fn read(buf: &Vec<u8>, mut index: usize) -> Option<(VarIntLengthPrefixedString, usize)> {
-        let mut varint_size = 0;
+        let varint_size;
         let length = match <VarInt as ReadField>::read(buf, index) {
             Some((l, v)) => {
                 varint_size = v;
@@ -245,14 +245,14 @@ impl WriteField for ShortLengthPrefixedString {
 // u16
 
 impl ReadField for u16 {
-    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(u16, usize)> {
+    fn read(buf: &Vec<u8>, index: usize) -> Option<(u16, usize)> {
         if buf.len() < index + 2 {
             return None;
         }
 
         let mut us_bytes: [u8; 2] = Default::default();
         us_bytes.copy_from_slice(&buf[index..(index + 2)]);
-        let mut s: u16 = 0;
+        let s: u16;
         unsafe {
             // swap bytes
             s = mem::transmute([us_bytes[1], us_bytes[0]]);
@@ -274,14 +274,14 @@ impl WriteField for u16 {
 // u32
 
 impl ReadField for u32 {
-    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(u32, usize)> {
+    fn read(buf: &Vec<u8>, index: usize) -> Option<(u32, usize)> {
         if buf.len() < index + 4 {
             return None;
         }
 
         let mut bytes: [u8; 4] = Default::default();
         bytes.copy_from_slice(&buf[index..(index + 4)]);
-        let mut s: u32 = 0;
+        let s: u32;
         unsafe {
             s = mem::transmute([
                 bytes[3], bytes[2], bytes[1], bytes[0]
@@ -306,14 +306,14 @@ impl WriteField for u32 {
 // u64
 
 impl ReadField for u64 {
-    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(u64, usize)> {
+    fn read(buf: &Vec<u8>, index: usize) -> Option<(u64, usize)> {
         if buf.len() < index + 8 {
             return None;
         }
 
         let mut b: [u8; 8] = Default::default();
         b.copy_from_slice(&buf[index..(index + 8)]);
-        let mut s: u64 = 0;
+        let s: u64;
         unsafe {
             // swap bytes
             s = mem::transmute([
@@ -335,7 +335,7 @@ impl WriteField for u64 {
 // RakNetMagic
 
 impl ReadField for RakNetMagic {
-    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(RakNetMagic, usize)> {
+    fn read(buf: &Vec<u8>, index: usize) -> Option<(RakNetMagic, usize)> {
         // TODO: Validate
         if buf.len() < index + 16 {
             return None;
@@ -354,7 +354,7 @@ impl WriteField for RakNetMagic {
 // it's just 46 zeros
 
 impl ReadField for FortySixZeros {
-    fn read(buf: &Vec<u8>, mut index: usize) -> Option<(FortySixZeros, usize)> {
+    fn read(buf: &Vec<u8>, index: usize) -> Option<(FortySixZeros, usize)> {
         println!("READING 46 0s");
         if buf.len() < index + 45 {
             println!(" NOT ENOUGH ZEROS?!??!?!?");
@@ -395,8 +395,8 @@ impl ReadField for Address {
                 index += 4;
 
                 let port = match <u16 as ReadField>::read(buf, index) {
-                    Some((l, v)) => {
-                        index += v;
+                    Some((l, _v)) => {
+                        // index += v;
                         l
                     }
                     None => return None
@@ -415,7 +415,7 @@ impl ReadField for Address {
                 // this is obnoxious code
 
                 // this should always be 23?
-                let family = match <u16 as ReadField>::read(buf, index) {
+                let _family = match <u16 as ReadField>::read(buf, index) {
                     Some((l, v)) => {
                         index += v;
                         l
@@ -497,8 +497,8 @@ impl ReadField for Address {
                 }; // 23
 
                 let scope_id = match <u32 as ReadField>::read(buf, index) {
-                    Some((l, v)) => {
-                        index += v;
+                    Some((l, _v)) => {
+                        // index += v;
                         l
                     }
                     None => return None
@@ -553,7 +553,7 @@ impl ReadField for Vec<Address> {
     fn read(buf: &Vec<u8>, mut index: usize) -> Option<(Self, usize)> {
         let mut addresses = Vec::with_capacity(20);
         let mut size = 0;
-        for i in 0..20 {
+        for _i in 0..20 {
             let address = match <Address as ReadField>::read(buf, index) {
                 Some((l, v)) => {
                     index += v;
@@ -590,7 +590,7 @@ impl ReadField for IntRangeList {
         };
 
         let mut ranges = Vec::with_capacity(len as usize);
-        for i in 0..len {
+        for _i in 0..len {
             let singleton = buf[index] == 1;
             index += 1;
             let start = [buf[index], buf[index + 1], buf[index + 2]];

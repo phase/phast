@@ -1,5 +1,4 @@
-use std::net::{TcpStream, TcpListener, UdpSocket, SocketAddr, IpAddr, Ipv4Addr};
-use std::io::{Write, Read};
+use std::net::{SocketAddr, IpAddr, Ipv4Addr};
 use std::thread;
 use std::time::*;
 use std::thread::JoinHandle;
@@ -10,7 +9,6 @@ use std::any::Any;
 use network::*;
 use network::types::*;
 use network::packet::*;
-use network::connection::*;
 
 use network::protocol::*;
 use network::protocol::java::*;
