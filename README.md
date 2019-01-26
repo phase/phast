@@ -1,3 +1,5 @@
+# phast
+
 **Minecraft Server Implementation written in Rust, supporting Java Edition & Bedrock Edition**
 
 The main goals of this implementation are compatibility & performance. Accepting clients using
@@ -22,16 +24,16 @@ any Java or Bedrock version should be possible.
 
 * Nothing works nor will it work for quite a while. Please don't ask about it.
 * Server structure
-    * Received Packet queue
-    * Game Loop
-    * Blocks / Items / Tiles / Entities for specific versions
-    * World & Chunk Structure
-        * One thread per world?
-    * Packet sending queue
-        * Put this on its own thread?
+    * [x] Received Packet queue
+    * [ ] Game Loop
+    * [ ] Blocks / Items / Tiles / Entities for specific versions
+    * [ ] World & Chunk Structure
+        * [ ] One thread per world?
+    * [x] Packet sending queue
+        * [ ]  Put this on its own thread?
     * Wow there's a lot in here
 * Anvil World Loader (There are lots of open source implementations already)
-* Plugin system? I've got no clue. I think using WASM module could be cool, and it would allow for
+* Plugin system? I've got no clue. I think using WASM modules could be cool, and it would allow for
 any language to be used.
 
 **License**

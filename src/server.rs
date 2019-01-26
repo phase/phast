@@ -116,7 +116,7 @@ impl Server {
                                 ]\
                             }},\
                             \"description\": {{\
-                                \"text\": \"rserver test\"\
+                                \"text\": \"phast test\"\
                             }}\
                         }}", protocol_version);
 
@@ -136,7 +136,7 @@ impl Server {
                 self.send_packet(address, response);
             }
             Packet::UnconnectedPingPacket(packet) => {
-                let response_string = "MCPE;rserver test;282;1.6.0;1;2;9999;test2;Survival;";
+                let response_string = "MCPE;phast test;282;1.6.0;1;2;9999;test2;Survival;";
                 let response = Packet::UnconnectedPongPacket(raknet::UnconnectedPongPacket::new(
                     0,
                     1234,
