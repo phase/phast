@@ -14,6 +14,7 @@ use std::sync::mpsc::{channel, Sender, Receiver};
 use std::net::{TcpListener, UdpSocket, SocketAddr};
 
 use concurrent_hashmap::*;
+use network::protocol::*;
 use network::packet::*;
 use network::connection::*;
 
@@ -33,12 +34,12 @@ impl ConnectionManager {
 
 pub struct NetworkManager {
     connection_manager: Arc<ConnectionManager>,
-    packet_sender: Sender<(SocketAddr, Box<Packet>)>,
+    packet_sender: Sender<(SocketAddr, Packet)>,
     threads: Vec<JoinHandle<()>>,
 }
 
 impl NetworkManager {
-    pub fn new(connection_manager: Arc<ConnectionManager>, packet_sender: Sender<(SocketAddr, Box<Packet>)>) -> Self {
+    pub fn new(connection_manager: Arc<ConnectionManager>, packet_sender: Sender<(SocketAddr, Packet)>) -> Self {
         Self {
             connection_manager,
             packet_sender,
@@ -97,7 +98,7 @@ impl NetworkManager {
     fn start_packet_parse_loop(
         connection_manager: Arc<ConnectionManager>,
         bytes: Receiver<(SocketAddr, Vec<u8>)>,
-        packet_channel: Sender<(SocketAddr, Box<Packet>)>,
+        packet_channel: Sender<(SocketAddr, Packet)>,
     ) {
         loop {
             match bytes.recv() {

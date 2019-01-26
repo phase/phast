@@ -1,21 +1,11 @@
 use network::protocol;
 use std::any::Any;
 
-pub trait Packet: AsAny + Send + Sync {
+pub trait PacketType: Send + Sync {
     fn name(&self) -> &str;
     fn read(&mut self, bytes: Vec<u8>) -> bool;
     fn write(&self) -> Vec<u8>;
     fn next_state(&self) -> Option<protocol::State>;
-}
-
-pub trait AsAny {
-    fn as_any(self: Box<Self>) -> Box<Any>;
-}
-
-impl<T: Packet + 'static> AsAny for T {
-    fn as_any(self: Box<Self>) -> Box<Any> {
-        self
-    }
 }
 
 /// Read type from bytes
@@ -55,7 +45,7 @@ macro_rules! packet {
         }
 
         #[allow(dead_code)]
-        impl Packet for $packet_name {
+        impl PacketType for $packet_name {
             fn name(&self) -> &str {
                 stringify!($packet_name)
             }

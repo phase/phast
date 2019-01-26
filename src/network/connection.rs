@@ -1,5 +1,5 @@
 use std::net::{TcpStream, UdpSocket, SocketAddr};
-use std::io::{Write};
+use std::io::Write;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicIsize, Ordering};
 
@@ -28,7 +28,7 @@ pub struct Connection {
 }
 
 enum PacketResult {
-    CompletePacket(Box<Packet>),
+    CompletePacket(Packet),
     NeedMoreData,
     Skipped(usize),
 }
@@ -70,8 +70,8 @@ impl Connection {
     }
 
     // might need a lock so we only handle one read at a time
-    pub fn handle_read(&mut self, bytes: &mut Vec<u8>) -> Vec<Box<Packet>> {
-        let mut packets: Vec<Box<Packet>> = Vec::with_capacity(1);
+    pub fn handle_read(&mut self, bytes: &mut Vec<u8>) -> Vec<Packet> {
+        let mut packets: Vec<Packet> = Vec::with_capacity(1);
         self.unprocessed_buffer.append(bytes);
         let mut needs_more_data = false;
         while self.unprocessed_buffer.len() > 0 && !needs_more_data {
@@ -265,7 +265,7 @@ impl Connection {
 
                 if index + length > bytes.len() {
                     println!("need {}/{} ({:X?}/{:X?}) bytes!!", length, bytes.len(), length, bytes.len());
-                    return NeedMoreData
+                    return NeedMoreData;
                 }
 
                 let packet_bytes = (&bytes[index..(index + length - 1)]).to_vec();
@@ -301,7 +301,7 @@ impl Connection {
         }
     }
 
-    pub fn send_packet(&mut self, packet: Box<Packet>) {
+    pub fn send_packet(&mut self, packet: Packet) {
         match self.protocol.write(packet, Bound::Clientbound) {
             Some(mut bytes) => {
                 if self.protocol_state == State::BedrockRakNet {
