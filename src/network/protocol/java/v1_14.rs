@@ -4,7 +4,7 @@ use protocol::*;
 // Packets for Minecraft Java Edition Version 1.14 (protocol version 457)
 // https://wiki.vg/Pre-release_protocol
 
-protocol!("1.14", ProtocolJava_1_14, ProtocolEdition::JavaEdition, 457,
+protocol!("19w04b", ProtocolJava_1_14, ProtocolEdition::JavaEdition, 457,
     // Handshake
     0x00, JavaHandshake, Serverbound, java v1_7 HandshakePacket,
     // Status

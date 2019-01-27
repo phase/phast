@@ -92,7 +92,6 @@ impl Server {
                 let protocol_version = packet.protocol_version.0;
                 let protocol = protocol::get_protocol(protocol_version);
                 if let Some(protocol) = protocol.clone() {
-                    dbg!(protocol.name());
                     if let Some(mut connection) = self.connection_manager.connections.find_mut(&address) {
                         connection.get().protocol = protocol
                     }
@@ -100,7 +99,7 @@ impl Server {
 
                 match packet.next_state.0 {
                     1 => {
-                        let support = if let Some(protocol) = protocol.clone() {
+                        let support = if let Some(protocol) = protocol {
                             format!("§2Client: {}", protocol.name())
                         } else {
                             "§cYour version is not supported yet!".to_string()
@@ -135,6 +134,13 @@ impl Server {
                     }
                     2 => {
                         // Login state handled earlier
+
+                        // if we don't support the protocol, disconnect them
+                        if let None = protocol {
+                            let response_string = "{\"text\": \"Please use a supported version!\"}";
+                            let response = Packet::java_v1_7_DisconnectPacket(v1_7::DisconnectPacket::new(VarIntLengthPrefixedString(response_string.to_string())));
+                            self.send_packet(address, response);
+                        }
                     }
                     _ => {}
                 }
