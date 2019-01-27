@@ -21,7 +21,7 @@ pub struct Connection {
     pub address: SocketAddr,
     pub socket: SocketWrapper,
     pub protocol_state: State,
-    pub protocol: Box<Protocol>,
+    pub protocol: Protocol,
     // processing packets
     unprocessed_buffer: Vec<u8>,
     datagram_sequence_id: AtomicIsize,
@@ -46,8 +46,8 @@ impl Connection {
                 SocketWrapper::UDP(_) => State::BedrockRakNetOffline,
             },
             protocol: match socket {
-                SocketWrapper::TCP(_) => Box::new(v1_12::ProtocolJava_1_12),
-                SocketWrapper::UDP(_) => Box::new(raknet::ProtocolBedrockRakNet),
+                SocketWrapper::TCP(_) => Protocol::ProtocolJava_1_7(v1_7::ProtocolJava_1_7),
+                SocketWrapper::UDP(_) => Protocol::ProtocolBedrockRakNet(raknet::ProtocolBedrockRakNet),
             },
             socket,
             unprocessed_buffer: vec![],
@@ -333,10 +333,10 @@ impl Connection {
     pub fn write(&mut self, bytes: &[u8]) {
         match self.socket {
             SocketWrapper::TCP(ref mut stream) => {
-                stream.write(bytes).unwrap();
+                stream.write(bytes);
             }
             SocketWrapper::UDP(ref mut socket) => {
-                socket.send_to(bytes, self.address).unwrap();
+                socket.send_to(bytes, self.address);
             }
         }
     }

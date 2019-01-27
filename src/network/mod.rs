@@ -30,6 +30,14 @@ impl ConnectionManager {
             tcp_addresses: Mutex::new(Vec::with_capacity(20)),
         }
     }
+
+    pub fn get_protocol(&self, address: SocketAddr) -> Option<Protocol> {
+        if let Some(mut connection) = self.connections.find_mut(&address) {
+            Some(connection.get().protocol)
+        } else {
+            None
+        }
+    }
 }
 
 pub struct NetworkManager {
@@ -106,13 +114,13 @@ impl NetworkManager {
                     if let Some(mut connection) = connection_manager.connections.find_mut(&address) {
                         let packets = (*connection.get()).handle_read(&mut bytes);
                         for packet in packets {
-                            println!("[Packet-Parse]: Received {} from {}", packet.name(), address);
+                            println!("[Packet-Parse] Received {} from {}", packet.name(), address);
                             packet_channel.send((address, packet)).unwrap();
                         }
                     }
                 }
                 Err(e) => {
-                    println!("[Packet-Parse]: Error when receiving bytes in parse loop: {}", e);
+                    println!("[Packet-Parse] Error when receiving bytes in parse loop: {}", e);
                 }
             }
         }
@@ -136,10 +144,10 @@ impl NetworkManager {
                     connection_manager.connections.insert(address, connection);
                     let mut tcp_addresses = connection_manager.tcp_addresses.lock().unwrap();
                     tcp_addresses.push(address);
-                    println!("[TCP-Listener]: Accepted new connection from {}", address);
+                    println!("[TCP-Listener] Accepted new connection from {}", address);
                 }
                 Err(e) => {
-                    println!("[TCP-Listener]: Failed to accept connection: {}", e);
+                    println!("[TCP-Listener] Failed to accept connection: {}", e);
                 }
             }
         }
@@ -157,7 +165,7 @@ impl NetworkManager {
                             let length = stream.read(&mut buf).unwrap_or(0);
 
                             if length > 0 {
-//                                println!("[TCP-Read]: Read {} bytes from {}", length, address);
+//                                println!("[TCP-Read] Read {} bytes from {}", length, address);
                                 byte_sender.send((*address, (&buf[..length]).to_vec())).unwrap();
                             }
                         }
@@ -168,7 +176,7 @@ impl NetworkManager {
             match now.elapsed() {
                 Ok(elapsed) => {
                     let sleep = read_tick - elapsed;
-//                    println!("[TCP-Read]: Sleeping for {:?}", sleep);
+//                    println!("[TCP-Read] Sleeping for {:?}", sleep);
                     thread::sleep(sleep);
                 }
                 Err(_) => {}
@@ -187,10 +195,10 @@ impl NetworkManager {
             if length > 0 {
                 let buf = (&mut buf[..length]).to_vec();
 
-                println!("[UDP]: Read {} bytes from {}\n  {:X?}", buf.len(), address, buf);
+                println!("[UDP] Read {} bytes from {}\n  {:X?}", buf.len(), address, buf);
                 if let None = connection_manager.connections.find_mut(&address) {
                     // this is a new connection
-                    println!("[UDP]: Accepted new connection from {}", address);
+                    println!("[UDP] Accepted new connection from {}", address);
                     let mut connection = Connection::new(address, SocketWrapper::UDP(socket.clone()));
                     connection_manager.connections.insert(address, connection);
                 }

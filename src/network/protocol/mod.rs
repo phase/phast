@@ -1,10 +1,8 @@
 use network::packet::*;
 use network::types::*;
 
-use std::any::Any;
-
 #[derive(Debug, Eq, PartialEq)]
-pub enum ProtocolType {
+pub enum ProtocolEdition {
     JavaEdition,
     BedrockEdition,
 }
@@ -42,8 +40,9 @@ pub enum Bound {
     None,
 }
 
-pub trait Protocol: Send + Sync {
-    fn protocol_type(&self) -> ProtocolType;
+pub trait ProtocolType: Send + Sync {
+    fn name(&self) -> &str;
+    fn protocol_type(&self) -> ProtocolEdition;
     fn protocol_version(&self) -> i32;
     fn read(&self, id: i32, state: State, bound: Bound, bytes: Vec<u8>) -> Option<Packet>;
     fn write(&self, packet: Packet, bound: Bound) -> Option<Vec<u8>>;
@@ -51,13 +50,22 @@ pub trait Protocol: Send + Sync {
 
 #[macro_export]
 macro_rules! protocol {
-    ($protocol_name:ident, $protocol_type:expr, $protocol_version:expr, $($id:expr, $state:expr, $bound:expr, $packet:ident),*) => {
+    ($pretty_name:expr, $protocol_name:ident, $protocol_type:expr, $protocol_version:expr,
+        $($id:expr, $state:ident, $bound:ident, $package:ident $protocol:ident $packet_name:ident),*) => {
         #[allow(non_camel_case_types)]
+        #[derive(Debug, Eq, PartialEq, Clone, Copy)]
         pub struct $protocol_name;
+        paste::item! {
+            pub const [<$protocol_name _Id>]: i32 = $protocol_version;
+        }
 
         #[allow(dead_code)]
-        impl Protocol for $protocol_name {
-            fn protocol_type(&self) -> ProtocolType {
+        impl ProtocolType for $protocol_name {
+            fn name(&self) -> &str {
+                $pretty_name
+            }
+
+            fn protocol_type(&self) -> ProtocolEdition {
                 $protocol_type
             }
 
@@ -67,11 +75,13 @@ macro_rules! protocol {
 
             fn read(&self, id: i32, state: State, bound: Bound, bytes: Vec<u8>) -> Option<Packet> {
                 $(
-                    if id == $id && state == $state && (bound == $bound || $bound == Bound::Any) {
-                        let mut packet = $packet::default();
-                        return match packet.read(bytes) {
-                            true => Some(Packet::$packet(packet)),
-                            false => None
+                    if id == $id && state == State::$state && (bound == Bound::$bound || Bound::$bound == Bound::Any) {
+                        let mut packet = $package::$protocol::$packet_name::default();
+                        paste::item! {
+                            return match packet.read(bytes) {
+                                true =>  Some(Packet::[<$package _ $protocol _ $packet_name>](packet)),
+                                false => None
+                            }
                         }
                     }
                 )*
@@ -80,22 +90,24 @@ macro_rules! protocol {
 
             fn write(&self, packet: Packet, bound: Bound) -> Option<Vec<u8>> {
                 $(
-                    if $bound == bound || $bound == Bound::Any{
-                        if let Packet::$packet(packet) = packet {
-                            let id = $id;
-                            if $protocol_type == ProtocolType::JavaEdition {
-                                let mut buf = VarInt(id).write();
-                                buf.append(&mut packet.write());
-                                // prepend length as a varint
-                                let mut full = VarInt(buf.len() as i32).write();
-                                full.append(&mut buf);
-                                return Some(full);
-                            } else if $protocol_type == ProtocolType::BedrockEdition {
-                                let mut buf = vec![id as u8];
-                                buf.append(&mut packet.write());
-                                return Some(buf);
-                            } else {
-                                return None;
+                    if Bound::$bound == bound || Bound::$bound == Bound::Any{
+                        paste::item! {
+                            if let Packet::[<$package _ $protocol _ $packet_name>](packet) = packet {
+                                let id = $id;
+                                if $protocol_type == ProtocolEdition::JavaEdition {
+                                    let mut buf = VarInt(id).write();
+                                    buf.append(&mut packet.write());
+                                    // prepend length as a varint
+                                    let mut full = VarInt(buf.len() as i32).write();
+                                    full.append(&mut buf);
+                                    return Some(full);
+                                } else if $protocol_type == ProtocolEdition::BedrockEdition {
+                                    let mut buf = vec![id as u8];
+                                    buf.append(&mut packet.write());
+                                    return Some(buf);
+                                } else {
+                                    return None;
+                                }
                             }
                         }
                     }
@@ -110,45 +122,90 @@ macro_rules! protocol {
 pub mod bedrock;
 pub mod java;
 
-macro_rules! packet_registry {
-    ($($package:ident $protocol:ident $packet_name:ident)*) => {
-        #[derive(Debug)]
-        pub enum Packet {
-            $(
-                $packet_name($package::$protocol::$packet_name),
-            )*
+macro_rules! protocol_registry {
+    ($($package:ident $version:ident $protocol_name:ident)*) => {
+        #[derive(Debug, Eq, PartialEq, Clone, Copy)]
+        pub enum Protocol {
+            $($protocol_name($package::$version::$protocol_name),)*
         }
 
-        impl PacketType for Packet {
+        impl ProtocolType for Protocol {
             fn name(&self) -> &str {
                 match self {
-                    $(
-                        Packet::$packet_name(packet) => packet.name(),
-                    )*
+                    $(Protocol::$protocol_name(protocol) => protocol.name(),)*
                 }
             }
 
-            fn read(&mut self, bytes: Vec<u8>) -> bool {
+            fn protocol_type(&self) -> ProtocolEdition {
                 match self {
-                    $(
-                        Packet::$packet_name(packet) => packet.read(bytes),
-                    )*
+                    $(Protocol::$protocol_name(protocol) => protocol.protocol_type(),)*
                 }
             }
 
-            fn write(&self) -> Vec<u8> {
+            fn protocol_version(&self) -> i32 {
                 match self {
-                    $(
-                        Packet::$packet_name(packet) => packet.write(),
-                    )*
+                    $(Protocol::$protocol_name(protocol) => protocol.protocol_version(),)*
                 }
             }
 
-            fn next_state(&self) -> Option<State> {
+            fn read(&self, id: i32, state: State, bound: Bound, bytes: Vec<u8>) -> Option<Packet> {
                 match self {
-                    $(
-                        Packet::$packet_name(packet) => packet.next_state(),
-                    )*
+                    $(Protocol::$protocol_name(protocol) => protocol.read(id, state, bound, bytes),)*
+                }
+            }
+
+            fn write(&self, packet: Packet, bound: Bound) -> Option<Vec<u8>> {
+                match self {
+                    $(Protocol::$protocol_name(protocol) => protocol.write(packet, bound),)*
+                }
+            }
+        }
+
+        pub fn get_protocol(version: i32) -> Option<Protocol> {
+            $(
+                let protocol_id = paste::expr! { $package::$version::[<$protocol_name _Id>] };
+                if version == protocol_id {
+                    return Some(Protocol::$protocol_name($package::$version::$protocol_name));
+                }
+            )*
+            None
+        }
+    }
+}
+
+macro_rules! packet_registry {
+    ($($package:ident $protocol:ident $packet_name:ident)*) => {
+        paste::item! {
+            #[derive(Debug)]
+            #[allow(non_camel_case_types)]
+            pub enum Packet {
+                $([<$package _ $protocol _ $packet_name>]($package::$protocol::$packet_name),)*
+            }
+        }
+        paste::item! {
+            impl PacketType for Packet {
+                fn name(&self) -> &str {
+                    match self {
+                        $(Packet::[<$package _ $protocol _ $packet_name>](packet) => packet.name(),)*
+                    }
+                }
+
+                fn read(&mut self, bytes: Vec<u8>) -> bool {
+                    match self {
+                        $(Packet::[<$package _ $protocol _ $packet_name>](packet) => packet.read(bytes),)*
+                    }
+                }
+
+                fn write(&self) -> Vec<u8> {
+                    match self {
+                        $(Packet::[<$package _ $protocol _ $packet_name>](packet) => packet.write(),)*
+                    }
+                }
+
+                fn next_state(&self) -> Option<State> {
+                    match self {
+                        $(Packet::[<$package _ $protocol _ $packet_name>](packet) => packet.next_state(),)*
+                    }
                 }
             }
         }
@@ -156,10 +213,12 @@ macro_rules! packet_registry {
 }
 
 use protocol::bedrock::raknet::*;
-use protocol::java::v1_12::*;
+use protocol::java::*;
 
 packet_registry! {
-    // Bedrock Raknet
+    // BEDROCK PACKETS \\
+
+    // Raknet
     bedrock raknet ConnectedPingPacket
     bedrock raknet UnconnectedPingPacket
     bedrock raknet UnconnectedPingOpenConnectionsPacket
@@ -180,19 +239,33 @@ packet_registry! {
     bedrock raknet NakPacket
     bedrock raknet AckPacket
 
-    // 1.12
+    // JAVA PACKETS \\
+
+    // 1.7
     // Handshake
-    java v1_12 HandshakePacket
+    java v1_7 HandshakePacket
     // Status
-    java v1_12 ResponsePacket
-    java v1_12 PongPacket
-    java v1_12 RequestPacket
-    java v1_12 PingPacket
+    java v1_7 ResponsePacket
+    java v1_7 PongPacket
+    java v1_7 RequestPacket
+    java v1_7 PingPacket
     // Login
-    java v1_12 LoginStartPacket
-    java v1_12 EncryptionResponsePacket
-    java v1_12 DisconnectPacket
-    java v1_12 EncryptionRequestPacket
-    java v1_12 LoginSuccessPacket
-    java v1_12 SetCompressionPacket
+    java v1_7 LoginStartPacket
+    java v1_7 EncryptionResponsePacket
+    java v1_7 DisconnectPacket
+    java v1_7 EncryptionRequestPacket
+    java v1_7 LoginSuccessPacket
+    java v1_7 SetCompressionPacket
+    // Play
+    java v1_7 KeepAlivePacket
+    java v1_7 JoinGamePacket
+
+    // 1.8
+    java v1_8 JoinGamePacket
 }
+
+protocol_registry!(
+    bedrock raknet ProtocolBedrockRakNet
+    java v1_7 ProtocolJava_1_7
+    java v1_8 ProtocolJava_1_8
+);

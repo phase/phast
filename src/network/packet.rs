@@ -1,5 +1,4 @@
 use network::protocol;
-use std::any::Any;
 
 pub trait PacketType: Send + Sync {
     fn name(&self) -> &str;

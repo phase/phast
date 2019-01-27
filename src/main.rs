@@ -1,4 +1,7 @@
+#![feature(proc_macro_hygiene)]
+
 extern crate concurrent_hashmap;
+extern crate paste;
 
 mod server;
 mod network;

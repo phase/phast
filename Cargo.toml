@@ -1,7 +1,8 @@
 [package]
-name = "rserver"
+name = "phast"
 version = "0.0.0"
 authors = ["Jadon Fowler <jadonflower@gmail.com>"]
 
 [dependencies]
 concurrent-hashmap = "0.2.2"
+paste = "0.1.4"

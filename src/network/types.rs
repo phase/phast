@@ -332,6 +332,34 @@ impl WriteField for u64 {
     }
 }
 
+// i32
+
+impl ReadField for i32 {
+    fn read(buf: &Vec<u8>, index: usize) -> Option<(i32, usize)> {
+        if buf.len() < index + 8 {
+            return None;
+        }
+
+        let mut b: [u8; 4] = Default::default();
+        b.copy_from_slice(&buf[index..(index + 4)]);
+        let s: i32;
+        unsafe {
+            // swap bytes
+            s = mem::transmute([
+                b[3], b[2], b[1], b[0]
+            ]);
+        }
+
+        Some((s, 4))
+    }
+}
+
+impl WriteField for i32 {
+    fn write(&self) -> Vec<u8> {
+        (unsafe { mem::transmute::<i32, [u8; 4]>(self.to_be()) })[..].to_vec()
+    }
+}
+
 // RakNetMagic
 
 impl ReadField for RakNetMagic {
