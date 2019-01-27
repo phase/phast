@@ -262,10 +262,19 @@ packet_registry! {
 
     // 1.8
     java v1_8 JoinGamePacket
+
+    // 1.9
+    java v1_9 JoinGamePacket
 }
 
 protocol_registry!(
     bedrock raknet ProtocolBedrockRakNet
     java v1_7 ProtocolJava_1_7
     java v1_8 ProtocolJava_1_8
+    java v1_9 ProtocolJava_1_9
+    java v1_10 ProtocolJava_1_10
+    java v1_11 ProtocolJava_1_11
+    java v1_12 ProtocolJava_1_12
+    java v1_13 ProtocolJava_1_13
+    java v1_14 ProtocolJava_1_14
 );

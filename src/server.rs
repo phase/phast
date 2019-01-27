@@ -202,6 +202,23 @@ impl Server {
                             ));
                             self.send_packet(address, join_game);
                         }
+                        Protocol::ProtocolJava_1_9(_)
+                        | Protocol::ProtocolJava_1_10(_)
+                        | Protocol::ProtocolJava_1_11(_)
+                        | Protocol::ProtocolJava_1_12(_)
+                        | Protocol::ProtocolJava_1_13(_)
+                        | Protocol::ProtocolJava_1_14(_) => {
+                            let join_game = Packet::java_v1_9_JoinGamePacket(v1_9::JoinGamePacket::new(
+                                0, // entity id
+                                0, // survival
+                                0, // overworld (i32)
+                                1, // peaceful
+                                70, // legacy max player count
+                                VarIntLengthPrefixedString("default".to_string()),
+                                0, // debug
+                            ));
+                            self.send_packet(address, join_game);
+                        }
                         _ => {}
                     }
                 }
